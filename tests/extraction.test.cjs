@@ -38,6 +38,19 @@ test("source quotes must match and extra suggestions are flagged", () => {
   assert.throws(() => parseModelDrafts(JSON.stringify({ assignments: [{ date: "2026-10-02" }] }), text));
 });
 
+test("a valid JSON object inside the model's prose and code fence is reviewed", () => {
+  const wrapped = `Here are the extracted assignments:\n\n\`\`\`\n${JSON.stringify({ assignments: [{ ...suggestion, title: "" }], moreThanTen: false })}\n\`\`\`\nPlease review them.`;
+  const result = parseModelDrafts(wrapped, text);
+  assert.equal(result.drafts.length, 1);
+  assert.equal(result.drafts[0].title, "");
+  assert.ok(result.drafts[0].warnings.includes("Add a title before saving."));
+  assert.equal(result.drafts[0].deadlineQuote, suggestion.deadlineQuote);
+  const review = { ...result.drafts[0], id: "draft-untitled", originalDate: result.drafts[0].date,
+    originalTime: result.drafts[0].time, hours: "1", minutes: "0", confirmed: true, skipped: false };
+  assert.throws(() => confirmedAssignment(review, "America/Halifax", "2026-09-27T12:00:00.000Z", "assignment-untitled"));
+  assert.throws(() => parseModelDrafts("Here is a list, without any JSON.", text));
+});
+
 test("only an explicitly confirmed draft with a full deadline and effort can be saved", () => {
   const extracted = parseModelDrafts(JSON.stringify({ assignments: [suggestion] }), text).drafts[0];
   const review = { ...extracted, id: "draft-1", originalDate: extracted.date, originalTime: extracted.time,

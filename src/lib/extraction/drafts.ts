@@ -44,6 +44,35 @@ function boundedText(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+/** Find a complete JSON object when a text model adds an introduction or code fence. */
+function modelJsonObject(output: string): Record<string, unknown> | null {
+  let start = -1;
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let end = 0; end < output.length; end++) {
+    const char = output[end];
+    if (start === -1) {
+      if (char !== "{") continue;
+      start = end;
+      depth = 1;
+    } else if (quoted) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') quoted = false;
+    } else if (char === '"') quoted = true;
+    else if (char === "{") depth++;
+    else if (char === "}" && --depth === 0) {
+      try {
+        const parsed = record(JSON.parse(output.slice(start, end + 1)));
+        if (parsed && Array.isArray(parsed.assignments)) return parsed;
+      } catch { /* Keep looking for a complete JSON object. */ }
+      start = -1;
+    }
+  }
+  return null;
+}
+
 /** Validate the small browser request before it can reach the provider. */
 export function parseExtractionRequest(value: unknown): ExtractionRequest | null {
   const input = record(value);
@@ -56,15 +85,15 @@ export function parseExtractionRequest(value: unknown): ExtractionRequest | null
 
 /** Model output is untrusted: keep only bounded fields and verify every claimed quote. */
 export function parseModelDrafts(output: string, sourceText: string): ExtractionResult {
-  const raw = output.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
-  const payload = record(JSON.parse(raw));
+  const payload = modelJsonObject(output);
   if (!payload || !Array.isArray(payload.assignments) || payload.assignments.length > 50) throw new Error("invalid_model_response");
   const drafts: ExtractedDraft[] = payload.assignments.slice(0, 10).map((item: unknown) => {
     const entry = record(item);
-    if (!entry || typeof entry.title !== "string" || !entry.title.trim()) throw new Error("invalid_model_response");
+    if (!entry || typeof entry.title !== "string") throw new Error("invalid_model_response");
     const warnings = Array.isArray(entry.warnings)
       ? entry.warnings.filter((warning): warning is string => typeof warning === "string").slice(0, 4).map((warning: string) => warning.slice(0, 180))
       : [];
+    if (!entry.title.trim()) warnings.push("Add a title before saving.");
     const proposedQuote = boundedText(entry.deadlineQuote, 500);
     const deadlineQuote = proposedQuote && sourceText.includes(proposedQuote) ? proposedQuote : null;
     const proposedExcerpt = boundedText(entry.excerpt, 700);

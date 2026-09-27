@@ -22,3 +22,7 @@ Local checks were run on 2026-09-27. The user reported deploying afterward. This
 - Verify the public Vercel URL in an incognito browser and on a phone over mobile data. Refresh `/plan` directly. Check that Vercel points to the intended GitHub branch and that `REPLICATE_API_TOKEN` is set only in Vercel project settings, not in a committed file. The URL is not recorded in this repository, so these checks have not been run yet.
 
 The release gate remains open until the fresh-browser and production checks pass. Browser data is stored per device, so work entered on the laptop will not automatically appear on the phone.
+
+## AI extraction regression found after deployment
+
+A live Replicate prediction succeeded but returned a short introduction and code fence around JSON, with an empty title. The deployed parser returned HTTP 502. The local parser now extracts the complete JSON object for review and flags the missing title, which still must be filled before saving. The regression test, lint, and production build pass locally. This fix still needs to be pushed, redeployed, and tried on the public app.
