@@ -169,3 +169,17 @@ test("active Focus time is reserved and conflicting commitments stop replanning"
   input.commitments.push({ id: "conflict", title: "New shift", startAt: activeBlock.startAt, endAt: activeBlock.endAt, category: "work" });
   assert.throws(() => buildSchedule(input), (error) => error instanceof SchedulingError && error.code === "active_focus_conflict");
 });
+
+test("replanning keeps completed history and marks expired sessions missed", () => {
+  const input = initialFixture();
+  const previous = buildSchedule(input);
+  input.previousPlan = {
+    ...previous,
+    blocks: previous.blocks.map((block, index) => index === 0 ? { ...block, state: "completed" } : block),
+  };
+  input.now = "2026-09-28T20:10:00.000Z";
+  const plan = buildSchedule(input);
+  assert.equal(plan.blocks.find((block) => block.id === previous.blocks[0].id).state, "completed");
+  assert.equal(plan.blocks.find((block) => block.id === previous.blocks[1].id).state, "missed");
+  assert.ok(plan.blocks.filter((block) => block.state === "scheduled").every((block) => block.startAt >= input.now));
+});

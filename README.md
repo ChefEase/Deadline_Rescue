@@ -16,7 +16,7 @@ The app is designed for one person. It does not require an account. Plans are in
 
 ## Current progress
 
-**Assignments and availability are available locally, and the deterministic scheduler is implemented and tested.** You can manage assignments, review and save weekly study hours, and add fixed commitments. Confirmed work is saved in this browser, with a recovery screen for invalid saved data. The plan screen, AI extraction, and Focus timing are still being built, so this is not yet a finished study planner.
+**The first complete setup journey and My Plan are available locally.** You can add assignments, confirm study hours, add fixed commitments, and build a 14-day plan. My Plan shows the next session, a daily agenda, a weekly view on desktop, and work that could not fit before its deadline. Saved work stays in this browser, with a recovery screen for invalid saved data. Detailed replan explanations, Focus timing, and AI extraction are still being built.
 
 The detailed product specification is in [Deadline_Rescue_Context.md](Deadline_Rescue_Context.md). The build order and completion checks are in [Deadline_Rescue_Development_Plan.md](Deadline_Rescue_Development_Plan.md).
 

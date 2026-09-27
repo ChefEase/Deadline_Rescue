@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Commitment, StudyWindow } from "@/lib/schema/types";
 import { newAppState } from "@/lib/persistence/storage";
 import { instantToLocalFields, isValidTimezone } from "@/lib/time/timezone";
 import { useAppStore } from "@/store/app-store";
+import { SetupChecklist } from "@/components/SetupChecklist";
+import { buildPlanForState } from "@/features/planning/build-plan";
 import { buildCommitments, displayStudyWindowEnd, normalizeStudyWindowEnd, proposedStudyWindows, validateWindows, WEEKDAYS, type CommitmentInput } from "./availability";
 import { CommitmentForm } from "./CommitmentForm";
 
@@ -16,6 +19,8 @@ function formatCommitment(instant: string, timezone: string): string {
 
 export function AvailabilityEditor() {
   const { state, mutate } = useAppStore();
+  const router = useRouter();
+  const buildingRef = useRef(false);
   const [windows, setWindows] = useState<StudyWindow[]>(() => state?.studyWindows.length
     ? state.studyWindows : proposedStudyWindows());
   const [timezone, setTimezone] = useState(() => state?.timezone || "UTC");
@@ -29,6 +34,8 @@ export function AvailabilityEditor() {
   const savedState = state;
 
   const zonePending = timezone.trim() !== state.timezone;
+  const availabilityDraftChanged = zonePending || Number(sessionMinutes) !== state.preferences.sessionMinutes ||
+    JSON.stringify(windows) !== JSON.stringify(state.studyWindows);
   const sortedCommitments = [...state.commitments].sort((a, b) => a.startAt.localeCompare(b.startAt));
   const upcoming = sortedCommitments.filter((item) => new Date(item.endAt).getTime() >= asOf);
   const past = sortedCommitments.filter((item) => new Date(item.endAt).getTime() < asOf);
@@ -74,6 +81,22 @@ export function AvailabilityEditor() {
     }));
     if (result.ok) { setError(""); setMessage("Study hours saved in this browser."); }
     else setError(result.reason);
+  }
+
+  function buildFromAvailability() {
+    if (buildingRef.current) return;
+    buildingRef.current = true;
+    setError("");
+    try {
+      const plan = buildPlanForState(savedState, new Date().toISOString());
+      const result = mutate((current) => ({ ...current, plan }));
+      if (result.ok) router.push("/plan");
+      else setError(result.reason);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "The plan could not be built.");
+    } finally {
+      buildingRef.current = false;
+    }
   }
 
   function saveCommitment(input: CommitmentInput) {
@@ -141,6 +164,7 @@ export function AvailabilityEditor() {
           <p>Choose when you can study, then block the time you cannot.</p>
         </div>
       </header>
+      {!state.plan && <SetupChecklist state={state} />}
 
       {!state.availabilityConfirmedAt && <p className="availability-notice" role="status">These hours are suggestions. Review and save them before building your first plan.</p>}
       {state.plan && state.plan.inputRevision !== state.inputRevision && <p className="availability-notice attention" role="status">Your plan needs an update because its scheduling inputs changed.</p>}
@@ -188,7 +212,13 @@ export function AvailabilityEditor() {
               <input type="number" min="15" step="15" value={sessionMinutes} onChange={(event) => { setSessionMinutes(event.target.value); setMessage(""); }} />
             </label>
           </div>
-          <button className="button" onClick={saveAvailability}>Save availability</button>
+          <div className="action-row">
+            <button className="button" onClick={saveAvailability}>Save availability</button>
+            {!state.plan && state.availabilityConfirmedAt && state.assignments.some((assignment) => assignment.status === "active") && (
+              <button className="button button-secondary" disabled={availabilityDraftChanged} onClick={buildFromAvailability}>Build my plan</button>
+            )}
+          </div>
+          {availabilityDraftChanged && state.availabilityConfirmedAt && <p className="field-help">Save these changes before building a plan.</p>}
         </section>
 
         <section className="availability-section commitment-section">

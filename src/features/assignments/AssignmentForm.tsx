@@ -33,7 +33,6 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const savingRef = useRef(false);
-  const closingRef = useRef(false);
   const [draft, setDraft] = useState<Draft>(() => assignment
     ? {
         title: assignment.title,
@@ -51,23 +50,11 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open && !dialog.open) {
-      closingRef.current = false;
       savingRef.current = false;
       dialog.showModal();
     }
     if (!open && dialog.open) dialog.close();
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    // An extra history entry makes browser Back close the panel while its draft stays mounted.
-    if (!window.history.state?.deadlineRescueForm) {
-      window.history.pushState({ ...window.history.state, deadlineRescueForm: true }, "");
-    }
-    const onBack = () => onClose();
-    window.addEventListener("popstate", onBack);
-    return () => window.removeEventListener("popstate", onBack);
-  }, [open, onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -81,10 +68,8 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
   }, [open, draft]);
 
   function closePanel() {
-    if (closingRef.current) return;
-    closingRef.current = true;
-    if (window.history.state?.deadlineRescueForm) window.history.back();
-    else onClose();
+    // The parent owns the open state; close it directly instead of waiting for navigation.
+    onClose();
   }
 
   function change(field: keyof Draft, value: string) {

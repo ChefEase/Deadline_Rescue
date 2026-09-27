@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { StoreBoundary } from "@/components/StoreBoundary";
+import { SetupChecklist } from "@/components/SetupChecklist";
 import { AssignmentForm, type AssignmentInput } from "@/features/assignments/AssignmentForm";
 import { AssignmentList } from "@/features/assignments/AssignmentList";
 import { useAppStore } from "@/store/app-store";
@@ -39,6 +40,7 @@ function AssignmentsContent() {
         </div>
         <button className="button" onClick={() => setFormOpen(true)}>Add assignment</button>
       </header>
+      {!state.plan && <SetupChecklist state={state} />}
       <div className="assignment-toolbar" role="group" aria-label="Assignment status">
         <button aria-pressed={filter === "active"} onClick={() => setFilter("active")}>Active <span>{state.assignments.filter((assignment) => assignment.status === "active").length}</span></button>
         <button aria-pressed={filter === "completed"} onClick={() => setFilter("completed")}>Completed <span>{state.assignments.filter((assignment) => assignment.status === "completed").length}</span></button>

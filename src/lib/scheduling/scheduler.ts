@@ -43,7 +43,7 @@ function roundDown(milliseconds: number): number {
   return Math.floor(milliseconds / GRID_MS) * GRID_MS;
 }
 
-function localDayStart(date: string, timezone: string): string {
+export function localDayStart(date: string, timezone: string): string {
   // Some zones skip midnight during a clock change; use the first valid quarter hour.
   for (let minute = 0; minute <= 180; minute += GRID_MINUTES) {
     const time = `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
@@ -166,8 +166,12 @@ export function buildSchedule(input: SchedulerInput): Plan {
     throw new SchedulingError("active_focus_conflict", "A commitment overlaps the active Focus session.");
   }
 
-  const protectedBlocks = previousBlocks.filter((block) =>
-    block.id !== activeBlock?.id && (block.state === "completed" || block.state === "missed"));
+  // Past uncompleted sessions remain in history as missed; they never become worked time.
+  const protectedBlocks = previousBlocks
+    .filter((block) => block.id !== activeBlock?.id && (
+      block.state === "completed" || block.state === "missed" ||
+      (block.state === "scheduled" && block.endAt <= input.now)))
+    .map((block) => block.state === "scheduled" ? { ...block, state: "missed" as const } : block);
   if (activeBlock) protectedBlocks.push({ ...activeBlock, state: "active" });
   const reserved = activeBlock ? [{ startAt: activeBlock.startAt, endAt: activeBlock.endAt }] : [];
   const freeIntervals = clipAndRound(subtractIntervals(clippedAvailability, [...blocked, ...reserved]), nowMs, horizonMs);

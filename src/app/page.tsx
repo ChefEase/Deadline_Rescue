@@ -1,6 +1,30 @@
-import Link from "next/link";
+"use client";
 
-export default function WelcomePage() {
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { StoreBoundary } from "@/components/StoreBoundary";
+import { useAppStore } from "@/store/app-store";
+
+function WelcomeContent() {
+  const { state } = useAppStore();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!state) return;
+    if (state.plan || state.assignments.some((item) => item.status === "completed")) {
+      router.replace("/plan");
+    } else if (state.assignments.some((item) => item.status === "active")) {
+      router.replace(state.availabilityConfirmedAt ? "/plan" : "/availability");
+    } else if (state.availabilityConfirmedAt) {
+      router.replace("/assignments");
+    }
+  }, [router, state]);
+
+  if (!state || state.plan || state.assignments.length > 0 || state.availabilityConfirmedAt) {
+    return <section className="welcome-card"><p>Opening your saved work…</p></section>;
+  }
+
   return (
     <section className="welcome-card">
       <p className="eyebrow">Deadline Rescue</p>
@@ -10,4 +34,8 @@ export default function WelcomePage() {
       <p className="supporting-text">Saved in this browser. No account needed.</p>
     </section>
   );
+}
+
+export default function WelcomePage() {
+  return <StoreBoundary><WelcomeContent /></StoreBoundary>;
 }
