@@ -24,7 +24,6 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const savingRef = useRef(false);
-  const closingRef = useRef(false);
   const [draft, setDraft] = useState<Draft>(() => commitment ? {
     title: commitment.title,
     date: instantToLocalFields(commitment.startAt, timezone).date,
@@ -39,22 +38,11 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open && !dialog.open) {
-      closingRef.current = false;
       savingRef.current = false;
       dialog.showModal();
     }
     if (!open && dialog.open) dialog.close();
   }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    if (!window.history.state?.deadlineRescueCommitment) {
-      window.history.pushState({ ...window.history.state, deadlineRescueCommitment: true }, "");
-    }
-    const onBack = () => onClose();
-    window.addEventListener("popstate", onBack);
-    return () => window.removeEventListener("popstate", onBack);
-  }, [open, onClose]);
 
   useEffect(() => {
     if (!open || JSON.stringify(draft) === initialDraft.current) return;
@@ -67,10 +55,8 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
   }, [open, draft]);
 
   function closePanel() {
-    if (closingRef.current) return;
-    closingRef.current = true;
-    if (window.history.state?.deadlineRescueCommitment) window.history.back();
-    else onClose();
+    // The parent owns the open state; closing must not wait for browser navigation.
+    onClose();
   }
 
   function change(field: keyof Draft, value: string) {

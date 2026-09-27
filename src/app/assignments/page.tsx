@@ -17,7 +17,6 @@ function AssignmentsContent() {
     const now = new Date().toISOString();
     return mutate((current) => ({
       ...current,
-      inputRevision: current.inputRevision + 1,
       assignments: [...current.assignments, {
         id: crypto.randomUUID(),
         ...input,

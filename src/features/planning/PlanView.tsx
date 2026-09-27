@@ -5,10 +5,13 @@ import { useEffect, useRef, useState } from "react";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { formatDue, formatEffort } from "@/features/assignments/AssignmentList";
 import type { AppState, Assignment, Commitment, StudyBlock } from "@/lib/schema/types";
-import { localDayStart } from "@/lib/scheduling/scheduler";
+import { isAppState } from "@/lib/schema/validate";
+import { summarizePlanChanges, type AssignmentPlanChange } from "@/lib/scheduling/changes";
+import { localDayStart, SchedulingError } from "@/lib/scheduling/scheduler";
 import { addLocalDays, instantToLocalFields } from "@/lib/time/timezone";
 import { useAppStore } from "@/store/app-store";
 import { buildPlanForState } from "./build-plan";
+import { PlanChanges } from "./PlanChanges";
 
 const DATE_KEY = "deadline-rescue:plan-date";
 
@@ -46,7 +49,7 @@ function sessionMinutes(block: StudyBlock): number {
   return (Date.parse(block.endAt) - Date.parse(block.startAt)) / 60_000;
 }
 
-function EventRow({ event, timezone, compact = false }: { event: PlanEvent; timezone: string; compact?: boolean }) {
+function EventRow({ event, timezone, now, stale, compact = false }: { event: PlanEvent; timezone: string; now: string; stale: boolean; compact?: boolean }) {
   const time = `${formatClock(event.startAt, timezone)}–${formatClock(event.endAt, timezone)}`;
   if (event.kind === "commitment") {
     return <div className={`plan-event commitment-event${compact ? " compact" : ""}`}>
@@ -55,27 +58,32 @@ function EventRow({ event, timezone, compact = false }: { event: PlanEvent; time
       <span>{time}</span>
     </div>;
   }
-  return <Link href={`/assignments/${event.assignment.id}`} className={`plan-event study-event${compact ? " compact" : ""}`}>
-    <span className="event-type">{event.block.state === "scheduled" ? "Study session" : `${event.block.state} session`}</span>
+  // A passed, unconfirmed block is shown as missed even before Replan stores that state.
+  const sessionLabel = event.block.state === "scheduled"
+    ? event.block.endAt <= now ? "Missed session" : stale ? "Saved session · needs update" : "Study session"
+    : `${event.block.state} session`;
+  const needsReview = event.block.state === "missed" ||
+    (event.block.state === "scheduled" && (stale || event.block.endAt <= now));
+  return <Link href={`/assignments/${event.assignment.id}`} className={`plan-event study-event${needsReview ? " attention-event" : ""}${compact ? " compact" : ""}`}>
+    <span className="event-type">{sessionLabel}</span>
     <strong>{event.assignment.title}</strong>
     <span>{time} · {formatEffort(sessionMinutes(event.block))}</span>
   </Link>;
 }
 
 function NextUpCard({ state, now, stale }: { state: AppState; now: string; stale: boolean }) {
+  if (stale) {
+    return <section className="next-up-card">
+      <p className="eyebrow">What to do next</p>
+      <h2>Refresh your plan</h2>
+      <p className="next-up-explanation">Saved sessions may no longer fit. Use Replan above before following the schedule.</p>
+    </section>;
+  }
   const next = state.plan?.blocks
     .filter((block) => block.state === "scheduled" && block.endAt > now)
     .sort((a, b) => a.startAt.localeCompare(b.startAt))[0];
   const assignment = next && state.assignments.find((item) => item.id === next.assignmentId);
   if (!next || !assignment) {
-    if (stale) {
-      return <section className="next-up-card">
-        <p className="eyebrow">What to do next</p>
-        <h2>Refresh your plan</h2>
-        <p className="next-up-explanation">Your saved plan needs an update before it can show your next study session. Use Replan above.</p>
-      </section>;
-    }
-
     const shortfall = state.plan?.shortfalls[0];
     const affected = state.assignments.find((item) => item.status === "active" && item.dueAt <= now)
       ?? state.assignments.find((item) => item.id === shortfall?.assignmentId);
@@ -107,7 +115,7 @@ function NextUpCard({ state, now, stale }: { state: AppState; now: string; stale
 
   return <section className="next-up-card">
     <p className="eyebrow">Next up</p>
-    <p className="next-up-when">{stale ? "Saved session · plan needs update" : next.startAt <= now ? "Available now" : `Next at ${formatClock(next.startAt, state.timezone)}`}</p>
+    <p className="next-up-when">{next.startAt <= now ? "Available now" : `Next at ${formatClock(next.startAt, state.timezone)}`}</p>
     <h2>{assignment.title}</h2>
     {assignment.course && <p className="next-up-course">{assignment.course}</p>}
     <dl className="next-up-facts">
@@ -119,15 +127,15 @@ function NextUpCard({ state, now, stale }: { state: AppState; now: string; stale
   </section>;
 }
 
-function Agenda({ state, date }: { state: AppState; date: string }) {
+function Agenda({ state, date, now, stale }: { state: AppState; date: string; now: string; stale: boolean }) {
   const events = eventsForDate(state, date);
   return <section className="agenda-view" aria-labelledby="agenda-heading">
     <div className="section-heading"><div><p className="eyebrow">Daily agenda</p><h2 id="agenda-heading">{formatDay(date)}</h2></div></div>
-    {events.length === 0 ? <p className="agenda-empty">No study sessions or commitments on this day.</p> : <div className="agenda-events">{events.map((event) => <EventRow key={`${event.kind}:${event.kind === "session" ? event.block.id : event.commitment.id}`} event={event} timezone={state.timezone} />)}</div>}
+    {events.length === 0 ? <p className="agenda-empty">No study sessions or commitments on this day.</p> : <div className="agenda-events">{events.map((event) => <EventRow key={`${event.kind}:${event.kind === "session" ? event.block.id : event.commitment.id}`} event={event} timezone={state.timezone} now={now} stale={stale} />)}</div>}
   </section>;
 }
 
-function WeekCalendar({ state, date, lastDate, needsAttention }: { state: AppState; date: string; lastDate: string; needsAttention: boolean }) {
+function WeekCalendar({ state, date, lastDate, needsAttention, now, stale }: { state: AppState; date: string; lastDate: string; needsAttention: boolean; now: string; stale: boolean }) {
   // A rolling week keeps the selected day in view, including when it is Sunday.
   const days = Array.from({ length: 7 }, (_, index) => addLocalDays(date, index))
     .filter((day) => day <= lastDate)
@@ -144,7 +152,7 @@ function WeekCalendar({ state, date, lastDate, needsAttention }: { state: AppSta
     {hasEvents && <div className="calendar-grid">{days.map((day) => {
       return <div className="calendar-day" key={day.date} data-selected={day.date === date}>
         <h3>{formatDay(day.date, { weekday: "short", month: "short", day: "numeric" })}</h3>
-        {day.events.length === 0 ? <p className="calendar-empty">Nothing scheduled</p> : day.events.map((event) => <EventRow key={`${event.kind}:${event.kind === "session" ? event.block.id : event.commitment.id}`} event={event} timezone={state.timezone} compact />)}
+        {day.events.length === 0 ? <p className="calendar-empty">Nothing scheduled</p> : day.events.map((event) => <EventRow key={`${event.kind}:${event.kind === "session" ? event.block.id : event.commitment.id}`} event={event} timezone={state.timezone} now={now} stale={stale} compact />)}
       </div>;
     })}</div>}
   </section>;
@@ -215,6 +223,7 @@ export function PlanView() {
   const [now, setNow] = useState(() => new Date().toISOString());
   const [requestedDate, setRequestedDate] = useState(readSavedDate);
   const [error, setError] = useState("");
+  const [planChanges, setPlanChanges] = useState<AssignmentPlanChange[] | null>(null);
   const [building, setBuilding] = useState(false);
   const buildingRef = useRef(false);
 
@@ -250,11 +259,22 @@ export function PlanView() {
     setBuilding(true);
     setError("");
     try {
-      const generated = buildPlanForState(state!, new Date().toISOString());
+      const referenceNow = new Date().toISOString();
+      const generated = buildPlanForState(state!, referenceNow);
+      // Check the entire replacement document before the store attempts one atomic save.
+      if (!isAppState({ ...state!, plan: generated })) throw new Error("The new plan did not pass validation. Your saved plan was not changed.");
+      const changes = plan ? summarizePlanChanges(plan, generated, state!.assignments, referenceNow) : null;
       const result = mutate((current) => ({ ...current, plan: generated }));
-      if (!result.ok) setError(result.reason);
+      if (result.ok) {
+        setPlanChanges(changes);
+        setNow(referenceNow);
+        setRequestedDate("");
+        try { window.sessionStorage.removeItem(DATE_KEY); } catch { /* The calendar still resets in memory. */ }
+      } else setError(result.reason);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The plan could not be built.");
+      setError(cause instanceof SchedulingError && cause.code === "active_focus_conflict"
+        ? "A commitment overlaps the Focus session in progress. Edit that commitment or finish Focus before replanning. Your saved plan is unchanged."
+        : cause instanceof Error ? cause.message : "The plan could not be built.");
     } finally {
       buildingRef.current = false;
       setBuilding(false);
@@ -271,7 +291,11 @@ export function PlanView() {
     statusText = confirmed ? "Your study hours are ready. Build a plan to see what fits." : "Confirm your study hours before building a plan.";
   } else if (stale) {
     statusTitle = "Needs update";
-    statusText = "Assignments, availability, or elapsed sessions changed. Replan to refresh future study time.";
+    statusText = expired
+      ? "A study session passed without a confirmed review. Replan to mark it missed and find new time."
+      : plan?.inputRevision !== state.inputRevision
+        ? "Your assignments or available hours changed. Replan before using saved study sessions."
+        : "This plan's 14-day range ended. Replan to see upcoming study time.";
   } else if (pastDueAssignments.length > 0) {
     statusTitle = pastDueAssignments.length === 1 ? "A deadline has passed" : `${pastDueAssignments.length} deadlines have passed`;
     statusText = pastDueAssignments.length === 1
@@ -309,6 +333,7 @@ export function PlanView() {
       {activeCount > 0 && confirmed && (!plan || stale) && <button className="button" disabled={building} onClick={buildPlan}>{building ? "Building…" : plan ? "Replan" : "Build my plan"}</button>}
     </section>
     {error && <p className="form-error" role="alert">{error}</p>}
+    {planChanges && <PlanChanges changes={planChanges} onDismiss={() => setPlanChanges(null)} />}
 
     {!activeCount ? <section className="plan-empty"><h2>You&apos;re all caught up</h2><p>Add an assignment to see your next useful study session.</p><Link className="button" href="/assignments">Add assignment</Link></section>
       : !confirmed || !plan ? <div className="plan-setup"><SetupChecklist state={state} />{confirmed && <p>Your confirmed hours are ready. Select <strong>Build my plan</strong> above to generate sessions.</p>}</div>
@@ -321,9 +346,9 @@ export function PlanView() {
               <label>Day to view <input type="date" min={firstDate} max={lastDate} value={selectedDate} onChange={(event) => selectDate(event.target.value)} /></label>
               <button aria-label="Next day" disabled={selectedDate >= lastDate} onClick={() => selectDate(addLocalDays(selectedDate, 1))}>→</button>
             </div>
-            <Agenda state={state} date={selectedDate} />
+            <Agenda state={state} date={selectedDate} now={now} stale={stale} />
           </div>
-          <WeekCalendar state={state} date={selectedDate} lastDate={lastDate} needsAttention={needsAttention} />
+          <WeekCalendar state={state} date={selectedDate} lastDate={lastDate} needsAttention={needsAttention} now={now} stale={stale} />
         </div>
         <AttentionList state={state} now={now} />
         <p className="plan-range">This plan covers {formatDay(firstDate, { month: "short", day: "numeric" })} to {formatDay(lastDate, { month: "short", day: "numeric", year: "numeric" })}. Study sessions are estimates based on your confirmed hours.</p>

@@ -29,9 +29,9 @@ function AssignmentDetails() {
   const focusOnAssignment = state.activeFocus?.assignmentId === id;
 
   function edit(input: AssignmentInput) {
-    const result = mutate((current) => removeFutureBlocks({
+    // Keep the old sessions as a stale snapshot so Replan can explain what moved.
+    const result = mutate((current) => ({
       ...current,
-      inputRevision: current.inputRevision + 1,
       assignments: current.assignments.map((item) => item.id === id ? {
         ...item,
         ...input,
@@ -41,7 +41,7 @@ function AssignmentDetails() {
           editedByUser: item.source.editedByUser || item.source.extractedDueAt !== input.dueAt,
         } : null,
       } : item),
-    }, id));
+    }));
     if (!result.ok) setError(result.reason);
     return result;
   }
@@ -56,7 +56,6 @@ function AssignmentDetails() {
     const now = new Date().toISOString();
     const result = mutate((current) => removeFutureBlocks({
       ...current,
-      inputRevision: current.inputRevision + 1,
       assignments: current.assignments.map((item) => item.id === id ? {
         ...item, status: "completed", remainingMinutes: 0, completedAt: now, updatedAt: now,
       } : item),
@@ -72,7 +71,6 @@ function AssignmentDetails() {
     }
     const result = mutate((current) => ({
       ...current,
-      inputRevision: current.inputRevision + 1,
       assignments: current.assignments.map((item) => item.id === id ? {
         ...item, status: "active", remainingMinutes: minutes, completedAt: null,
         updatedAt: new Date().toISOString(),
@@ -91,7 +89,6 @@ function AssignmentDetails() {
     // Delete related records in the same document write to preserve references.
     const result = mutate((current) => ({
       ...current,
-      inputRevision: current.inputRevision + 1,
       assignments: current.assignments.filter((item) => item.id !== id),
       workLogs: current.workLogs.filter((log) => log.assignmentId !== id),
       plan: current.plan ? {

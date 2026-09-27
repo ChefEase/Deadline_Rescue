@@ -15,6 +15,8 @@ require.extensions[".ts"] = (module, filename) => {
 
 const { initialFixture, disruptedFixture, recoveredFixture } = require("../src/lib/demo/fixture.ts");
 const { buildSchedule, SchedulingError } = require("../src/lib/scheduling/scheduler.ts");
+const { summarizePlanChanges } = require("../src/lib/scheduling/changes.ts");
+const { schedulingInputsChanged } = require("../src/lib/scheduling/input-revision.ts");
 const { mergeCommitmentIntervals } = require("../src/lib/scheduling/intervals.ts");
 const { localDateTimeCandidates } = require("../src/lib/time/timezone.ts");
 
@@ -182,4 +184,58 @@ test("replanning keeps completed history and marks expired sessions missed", () 
   assert.equal(plan.blocks.find((block) => block.id === previous.blocks[0].id).state, "completed");
   assert.equal(plan.blocks.find((block) => block.id === previous.blocks[1].id).state, "missed");
   assert.ok(plan.blocks.filter((block) => block.state === "scheduled").every((block) => block.startAt >= input.now));
+  const changes = summarizePlanChanges(previous, plan, input.assignments, input.now);
+  assert.equal(changes.find((change) => change.assignmentId === "programming").missedSessions, 1);
+});
+
+test("replan summary reports the shift shortfall and its recovery by assignment", () => {
+  const initial = initialFixture();
+  const first = buildSchedule(initial);
+  const disrupted = disruptedFixture();
+  disrupted.previousPlan = first;
+  const second = buildSchedule(disrupted);
+  const disruption = summarizePlanChanges(first, second, disrupted.assignments, disrupted.now);
+  const mathsDisruption = disruption.find((change) => change.assignmentId === "maths");
+  assert.equal(mathsDisruption.unscheduledBefore, 0);
+  assert.equal(mathsDisruption.unscheduledAfter, 120);
+  assert.ok(mathsDisruption.removedSessions > 0);
+
+  const recovered = recoveredFixture();
+  recovered.previousPlan = second;
+  const third = buildSchedule(recovered);
+  const recovery = summarizePlanChanges(second, third, recovered.assignments, recovered.now);
+  const mathsRecovery = recovery.find((change) => change.assignmentId === "maths");
+  assert.equal(mathsRecovery.unscheduledBefore, 120);
+  assert.equal(mathsRecovery.unscheduledAfter, 0);
+  assert.ok(mathsRecovery.addedSessions > 0);
+  assert.equal(recovered.assignments.find((item) => item.id === "maths").remainingMinutes, 120);
+});
+
+test("only scheduling fields invalidate the plan", () => {
+  const fixture = initialFixture();
+  const base = {
+    timezone: fixture.timezone, preferences: { sessionMinutes: fixture.sessionMinutes },
+    assignments: fixture.assignments, studyWindows: fixture.studyWindows, commitments: fixture.commitments,
+  };
+  assert.equal(schedulingInputsChanged(base, { ...base, assignments: base.assignments.map((item) => ({ ...item, notes: "Read chapter 3" })) }), false);
+  assert.equal(schedulingInputsChanged(base, { ...base, assignments: base.assignments.map((item) => ({ ...item, remainingMinutes: item.remainingMinutes + 15 })) }), true);
+  assert.equal(schedulingInputsChanged(base, { ...base, assignments: base.assignments.map((item) => ({ ...item, dueAt: "2026-10-01T23:00:00.000Z" })) }), true);
+  assert.equal(schedulingInputsChanged(base, { ...base, studyWindows: base.studyWindows.map((item) => ({ ...item, enabled: false })) }), true);
+  assert.equal(schedulingInputsChanged(base, { ...base, commitments: [...base.commitments, { id: "shift", title: "Shift", startAt: "2026-09-29T19:00:00.000Z", endAt: "2026-09-29T20:00:00.000Z" }] }), true);
+  assert.equal(schedulingInputsChanged(base, { ...base, timezone: "UTC" }), true);
+  assert.equal(schedulingInputsChanged(base, { ...base, preferences: { sessionMinutes: 45 } }), true);
+});
+
+test("replan comparison separates unchanged, moved, added, and removed sessions", () => {
+  const block = (id, assignmentId, hour) => ({
+    id, assignmentId, startAt: `2026-10-01T${hour}:00:00.000Z`,
+    endAt: `2026-10-01T${hour}:30:00.000Z`, state: "scheduled",
+  });
+  const before = { blocks: [block("a1", "programming", "15"), block("a2", "programming", "16"), block("b1", "maths", "17")], shortfalls: [] };
+  const after = { blocks: [block("a2", "programming", "16"), block("a3", "programming", "18"), block("a4", "programming", "19")], shortfalls: [] };
+  const changes = summarizePlanChanges(before, after, initialFixture().assignments, "2026-10-01T12:00:00.000Z");
+  assert.deepEqual(changes.map(({ title, movedSessions, addedSessions, removedSessions }) => ({ title, movedSessions, addedSessions, removedSessions })), [
+    { title: "Maths", movedSessions: 0, addedSessions: 0, removedSessions: 1 },
+    { title: "Programming", movedSessions: 1, addedSessions: 1, removedSessions: 0 },
+  ]);
 });

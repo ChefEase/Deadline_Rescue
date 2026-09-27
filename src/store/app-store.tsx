@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import type { AppState, Assignment } from "@/lib/schema/types";
 import { STORAGE_KEY, discardStoredDocument, loadDocument, newAppState, saveDocument } from "@/lib/persistence/storage";
 import { isAppState } from "@/lib/schema/validate";
+import { schedulingInputsChanged } from "@/lib/scheduling/input-revision";
 
 type StoreStatus = "loading" | "ready" | "invalid" | "unsupported" | "stale";
 type MutationResult = { ok: true } | { ok: false; reason: string };
@@ -47,7 +48,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const mutate = useCallback((change: (current: AppState) => AppState): MutationResult => {
     if (status !== "ready" || state === null) return { ok: false, reason: "Reload this tab before editing." };
     const changed = change(state);
-    const next = { ...changed, documentRevision: state.documentRevision + 1 };
+    // One transition owns the revision, so every scheduling edit marks the plan stale once.
+    const next = {
+      ...changed,
+      inputRevision: state.inputRevision + (schedulingInputsChanged(state, changed) ? 1 : 0),
+      documentRevision: state.documentRevision + 1,
+    };
     if (!isAppState(next)) return { ok: false, reason: "The change could not be saved safely." };
     const result = saveDocument(state, next, memoryOnly);
     if (result === "stale" || result === "blocked") {

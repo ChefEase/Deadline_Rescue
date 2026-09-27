@@ -16,7 +16,7 @@ The app is designed for one person. It does not require an account. Plans are in
 
 ## Current progress
 
-**The first complete setup journey and My Plan are available locally.** You can add assignments, confirm study hours, add fixed commitments, and build a 14-day plan. My Plan shows the next session, a daily agenda, a weekly view on desktop, and work that could not fit before its deadline. Saved work stays in this browser, with a recovery screen for invalid saved data. Detailed replan explanations, Focus timing, and AI extraction are still being built.
+**The setup journey, My Plan, and explicit replanning are available locally.** You can add assignments, confirm study hours, add fixed commitments, and build a 14-day plan. Changes to scheduling inputs mark the plan as needing an update; Replan shows sessions that moved, were added, were removed, or became unscheduled. Completed and missed session history is preserved. Saved work stays in this browser, with a recovery screen for invalid saved data. Focus timing and AI extraction are still being built.
 
 The detailed product specification is in [Deadline_Rescue_Context.md](Deadline_Rescue_Context.md). The build order and completion checks are in [Deadline_Rescue_Development_Plan.md](Deadline_Rescue_Development_Plan.md).
 

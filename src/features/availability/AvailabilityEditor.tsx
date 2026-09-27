@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Commitment, StudyWindow } from "@/lib/schema/types";
@@ -68,8 +69,6 @@ export function AvailabilityEditor() {
       "Change the plan timezone? Saved deadlines and commitments will keep their actual instants and display in the new timezone. Weekly study hours will keep their local clock times. Your plan will need an update.",
     )) return;
 
-    const inputsChanged = zone !== savedState.timezone || session !== savedState.preferences.sessionMinutes ||
-      JSON.stringify(windows) !== JSON.stringify(savedState.studyWindows);
     // Dated deadlines and commitments remain UTC instants; only their display zone changes.
     const result = mutate((current) => ({
       ...current,
@@ -77,7 +76,6 @@ export function AvailabilityEditor() {
       preferences: { ...current.preferences, sessionMinutes: session },
       studyWindows: windows,
       availabilityConfirmedAt: new Date().toISOString(),
-      inputRevision: current.inputRevision + (inputsChanged ? 1 : 0),
     }));
     if (result.ok) { setError(""); setMessage("Study hours saved in this browser."); }
     else setError(result.reason);
@@ -106,9 +104,13 @@ export function AvailabilityEditor() {
     const result = mutate((current) => ({
       ...current,
       commitments: [...current.commitments.filter((item) => item.id !== editing?.id), ...entries],
-      inputRevision: current.inputRevision + 1,
     }));
-    if (result.ok) { setEditing(null); setError(""); setMessage(entries.length === 2 ? "Overnight commitment saved as two entries." : "Commitment saved."); }
+    if (result.ok) {
+      setCommitmentOpen(false);
+      setEditing(null);
+      setError("");
+      setMessage(entries.length === 2 ? "Overnight commitment saved as two entries." : "Commitment saved.");
+    }
     return result;
   }
 
@@ -117,7 +119,6 @@ export function AvailabilityEditor() {
     const result = mutate((current) => ({
       ...current,
       commitments: current.commitments.filter((item) => item.id !== commitment.id),
-      inputRevision: current.inputRevision + 1,
     }));
     if (result.ok) { setError(""); setMessage("Commitment deleted."); }
     else setError(result.reason);
@@ -167,7 +168,7 @@ export function AvailabilityEditor() {
       {!state.plan && <SetupChecklist state={state} />}
 
       {!state.availabilityConfirmedAt && <p className="availability-notice" role="status">These hours are suggestions. Review and save them before building your first plan.</p>}
-      {state.plan && state.plan.inputRevision !== state.inputRevision && <p className="availability-notice attention" role="status">Your plan needs an update because its scheduling inputs changed.</p>}
+      {state.plan && state.plan.inputRevision !== state.inputRevision && <p className="availability-notice attention" role="status">Your saved study sessions may no longer fit. <Link href="/plan">Go to My Plan to Replan</Link>.</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
       {message && <p className="save-message" role="status">{message}</p>}
 

@@ -59,7 +59,7 @@ export function isAppState(value: unknown): value is AppState {
     if (!blocks.every(object) || !uniqueIds(blocks) || !blocks.every((item) =>
       text(item.id, 100, 1) && assignmentIds.has(item.assignmentId) && instant(item.startAt) && instant(item.endAt) &&
       item.endAt > item.startAt && ["scheduled", "active", "completed", "missed"].includes(String(item.state)) &&
-      (item.state !== "scheduled" || (String(item.endAt) <= String(assignments.find((assignment) => assignment.id === item.assignmentId)?.dueAt) &&
+      (item.state !== "scheduled" || plan.inputRevision !== value.inputRevision || (String(item.endAt) <= String(assignments.find((assignment) => assignment.id === item.assignmentId)?.dueAt) &&
         assignments.find((assignment) => assignment.id === item.assignmentId)?.status === "active")))) return false;
     if (!plan.shortfalls.every(object) || !plan.shortfalls.every((item) => assignmentIds.has(item.assignmentId) &&
       integer(item.requestedMinutes) && integer(item.allocatedMinutes) && integer(item.unscheduledMinutes) &&
