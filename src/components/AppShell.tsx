@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { ExampleBanner } from "@/features/demo/ExampleControls";
+import { useAppStore } from "@/store/app-store";
 
 const destinations = [
   { href: "/plan", label: "Plan" },
@@ -14,9 +16,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const inFocus = pathname.startsWith("/focus/");
   const onWelcome = pathname === "/";
+  const { state } = useAppStore();
+  const showExample = state?.mode === "example" && !onWelcome;
 
   if (inFocus || onWelcome) {
-    return <main className="standalone-page">{children}</main>;
+    return <main className="standalone-page">{showExample
+      ? <div className="standalone-stack"><ExampleBanner focus />{children}</div>
+      : children}</main>;
   }
 
   return (
@@ -35,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </aside>
-      <main className="page-content">{children}</main>
+      <main className="page-content">{showExample && <ExampleBanner />}{children}</main>
       <nav className="bottom-nav" aria-label="Main">
         {destinations.map(({ href, label }) => (
           <Link

@@ -16,7 +16,17 @@ The app is designed for one person. It does not require an account. Plans are in
 
 ## Current progress
 
-**The setup journey, My Plan, replanning, Focus, and reviewed AI extraction are available locally.** You can add assignments manually or paste instructions for AI suggestions, confirm study hours, add fixed commitments, and build a 14-day plan. AI suggestions are saved only after you review and confirm each deadline, time, and work estimate. Changes to scheduling inputs mark the plan as needing an update; Replan explains what changed. During a current session, Focus can run, pause, resume after refresh, and ask you to confirm actual work before saving progress and updating the plan. Saved work stays in this browser, with a recovery screen for invalid saved data.
+**The setup journey, My Plan, replanning, Focus, reviewed AI extraction, and a guided example are available locally.** You can add assignments manually or paste instructions for AI suggestions, confirm study hours, add fixed commitments, and build a 14-day plan. AI suggestions are saved only after you review and confirm each deadline, time, and work estimate. Changes to scheduling inputs mark the plan as needing an update; Replan explains what changed. During a current session, Focus can run, pause, resume after refresh, and ask you to confirm actual work before saving progress and updating the plan. Saved work stays in this browser, with a recovery screen for invalid saved data.
+
+## Try the example
+
+1. On Welcome, choose **Try an example**. If you already have personal work, open My Plan and choose it there; the app asks before replacing that work.
+2. My Plan opens with synthetic assignments, a class, study hours, and a schedule. Follow the blue **Try the example** prompt.
+3. In Availability, add the suggested 6:00–8:00 PM work shift on the date shown. Return to My Plan and select **Replan** to see the Maths shortfall.
+4. Enable the suggested 4:00–6:00 PM study window, save availability, and **Replan** again. The shortfall should clear.
+5. Open Focus from Next Up. End it early and enter only the minutes you actually worked; the example never fills in a fake completed session.
+
+The dates come from your local timezone. The **Example data** banner stays visible across the example, and **Start my own plan** asks before clearing it.
 
 The detailed product specification is in [Deadline_Rescue_Context.md](Deadline_Rescue_Context.md). The build order and completion checks are in [Deadline_Rescue_Development_Plan.md](Deadline_Rescue_Development_Plan.md).
 
@@ -43,7 +53,7 @@ Useful commands:
 | `npm run dev` | Start the local development server |
 | `npm run lint` | Check code style and common mistakes |
 | `npm run typecheck` | Check TypeScript types |
-| `npm test` | Run the scheduler, Focus, and extraction tests |
+| `npm test` | Run the scheduler, Focus, extraction, and example tests |
 | `npm run build` | Create a production build locally |
 
 Manual entry, planning, and Focus need no API key. To use AI extraction, create a Replicate API token and put `REPLICATE_API_TOKEN=your_token` in `.env.local`, then restart the local development server. The server calls Replicate's official `meta/meta-llama-3-70b-instruct` model. Pasted text and its reference date/time zone go to Replicate; saved assignments remain in this browser. Without a token, the paste form explains that extraction is unavailable and manual entry still works.

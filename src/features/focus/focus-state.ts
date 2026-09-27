@@ -41,8 +41,11 @@ export function startFocus(state: AppState, blockId: string, focusId: string, no
   }
   const block = plan.blocks.find((item) => item.id === blockId);
   const assignment = state.assignments.find((item) => item.id === block?.assignmentId);
+  // In the synthetic example, a session may begin up to 15 minutes early for a short live demo.
+  const earlyExampleStart = state.mode === "example" && block &&
+    Date.parse(block.startAt) - Date.parse(now) <= 15 * 60_000;
   if (!block || block.state !== "scheduled" || !assignment || assignment.status !== "active" ||
-      block.startAt > now || block.endAt <= now) {
+      (block.startAt > now && !earlyExampleStart) || block.endAt <= now) {
     throw new FocusError("not_ready", "This session is not available to start now.");
   }
   const activeFocus: ActiveFocus = {

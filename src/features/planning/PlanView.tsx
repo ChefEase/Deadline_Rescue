@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { formatDue, formatEffort } from "@/features/assignments/AssignmentList";
 import { startFocus } from "@/features/focus/focus-state";
+import { TryExampleButton } from "@/features/demo/ExampleControls";
+import { exampleDates, exampleShiftAdded, EXAMPLE_RECOVERY_ID } from "@/lib/demo/sample-data";
 import type { AppState, Assignment, Commitment, StudyBlock } from "@/lib/schema/types";
 import { isAppState } from "@/lib/schema/validate";
 import { summarizePlanChanges, type AssignmentPlanChange } from "@/lib/scheduling/changes";
@@ -124,6 +126,7 @@ function NextUpCard({ state, now, stale, onStart, starting }: { state: AppState;
     );
   }
 
+  const earlyExampleStart = state.mode === "example" && Date.parse(next.startAt) - Date.parse(now) <= 15 * 60_000;
   return <section className="next-up-card">
     <p className="eyebrow">Next up</p>
     <p className="next-up-when">{next.startAt <= now ? "Available now" : `Next at ${formatClock(next.startAt, state.timezone)}`}</p>
@@ -135,14 +138,49 @@ function NextUpCard({ state, now, stale, onStart, starting }: { state: AppState;
       <div><dt>Deadline</dt><dd>{formatDue(assignment.dueAt, state.timezone)}</dd></div>
     </dl>
     <div className="next-up-action">
-      {next.startAt <= now
-        ? <button className="button" disabled={starting} onClick={() => onStart(next.id)}>{starting ? "Opening Focus…" : "Start Focus"}</button>
+      {next.startAt <= now || earlyExampleStart
+        ? <button className="button" disabled={starting} onClick={() => onStart(next.id)}>{starting ? "Opening Focus…" : earlyExampleStart && next.startAt > now ? "Try Focus now" : "Start Focus"}</button>
         : <>
           <button className="button" disabled aria-describedby="focus-start-help">Start Focus</button>
           <p id="focus-start-help">Available when this session begins: {formatDue(next.startAt, state.timezone)}.</p>
         </>}
       <Link href={`/assignments/${assignment.id}`}>View assignment</Link>
     </div>
+    {earlyExampleStart && next.startAt > now && <p className="field-help">The example lets you start this session early. Focus records only the time you actually work.</p>}
+  </section>;
+}
+
+function ExampleGuide({ state, stale }: { state: AppState; stale: boolean }) {
+  const dates = exampleDates(state);
+  if (!dates) return <section className="example-guide" aria-label="Example walkthrough">
+    <p className="eyebrow">Try the example</p>
+    <h3>The sample assignments changed</h3>
+    <p>Reset the example above to run the guided walkthrough again.</p>
+  </section>;
+  const { shiftDate, repairDate } = dates;
+  const shiftAdded = exampleShiftAdded(state);
+  const recoveryEnabled = state.studyWindows.some((item) => item.id === EXAMPLE_RECOVERY_ID && item.enabled);
+  let instruction: string;
+  let href = "/availability";
+  let action = "Open Availability";
+  if (stale) {
+    instruction = "Your sample schedule changed. Select Replan above to see what still fits.";
+    href = "#plan-status";
+    action = "See Replan";
+  } else if (state.plan?.shortfalls.length) {
+    instruction = `The new shift leaves Maths short of study time. In Availability, enable ${formatDay(repairDate)} from 4:00 to 6:00 PM, save it, then Replan.`;
+  } else if (shiftAdded && recoveryEnabled) {
+    instruction = "The repaired plan fits again. Open the next Focus session, end it early, and record only the minutes you actually worked.";
+    href = "#next-up";
+    action = "See Next Up";
+  } else {
+    instruction = `Add a work shift on ${formatDay(shiftDate)} from 6:00 to 8:00 PM, then Replan. The plan will show which work no longer fits.`;
+  }
+  return <section className="example-guide" aria-label="Example walkthrough">
+    <p className="eyebrow">Try the example</p>
+    <h3>See how the plan responds</h3>
+    <p>{instruction}</p>
+    <Link href={href}>{action}</Link>
   </section>;
 }
 
@@ -385,11 +423,10 @@ export function PlanView() {
   return <div className="plan-page">
     <header className="page-heading">
       <div><p className="eyebrow">My Plan</p><h1>Your study plan</h1><p>Times shown in {state.timezone.replaceAll("_", " ")}</p></div>
-      <Link className="button button-secondary" href="/assignments">Add assignment</Link>
+      <div className="plan-header-actions"><Link className="button button-secondary" href="/assignments">Add assignment</Link>{state.mode === "personal" && <TryExampleButton quiet />}</div>
     </header>
-    {state.mode === "example" && <p className="availability-notice">Example data</p>}
     {reviewSaved && <p className="save-message" role="status">Progress saved. Your future study plan has been updated.</p>}
-    <section className="plan-status" data-tone={stale || needsAttention ? "attention" : "calm"} aria-live="polite">
+    <section id="plan-status" className="plan-status" data-tone={stale || needsAttention ? "attention" : "calm"} aria-live="polite">
       <div><p className="eyebrow">What your plan found</p><h2>{statusTitle}</h2><p>{statusText}</p></div>
       {activeCount > 0 && confirmed && (!plan || stale) && <button className="button" disabled={building} onClick={buildPlan}>{building ? "Building…" : plan ? "Replan" : "Build my plan"}</button>}
     </section>
@@ -401,7 +438,8 @@ export function PlanView() {
       : <>
         <div className="plan-main-grid">
           <div className="plan-primary">
-            <NextUpCard state={state} now={now} stale={stale} onStart={startSession} starting={starting} />
+            <div id="next-up"><NextUpCard state={state} now={now} stale={stale} onStart={startSession} starting={starting} /></div>
+            {state.mode === "example" && <ExampleGuide state={state} stale={stale} />}
             <div className="date-controls">
               <button aria-label="Previous day" disabled={selectedDate <= firstDate} onClick={() => selectDate(addLocalDays(selectedDate, -1))}>←</button>
               <label>Day to view <input type="date" min={firstDate} max={lastDate} value={selectedDate} onChange={(event) => selectDate(event.target.value)} /></label>

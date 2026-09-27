@@ -32,6 +32,8 @@ h2 { margin: 0 0 14px; font-size: 1.25rem; letter-spacing: -.02em; }
 .page-card, .welcome-card, .focus-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 32px; }
 .page-card { min-height: 280px; }
 .standalone-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
+.standalone-stack { width: min(100%, 600px); display: grid; gap: 16px; }
+.standalone-stack .focus-card { width: 100%; }
 .welcome-card, .focus-card { width: min(100%, 600px); }
 .eyebrow { color: var(--coral-dark); font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border: 1px solid var(--coral); border-radius: 9px; background: var(--coral); color: #fff; font-weight: 700; text-decoration: none; }
@@ -41,6 +43,19 @@ h2 { margin: 0 0 14px; font-size: 1.25rem; letter-spacing: -.02em; }
 .button-danger { background: #fff; border-color: #e2b0ad; color: #a42c28; }
 .button-danger:hover { background: #fff0ed; border-color: #c85d56; }
 .supporting-text { margin: 18px 0 0; font-size: .9rem; color: var(--muted); }
+.welcome-actions, .plan-header-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.example-action { display: inline-grid; gap: 8px; }
+.example-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; padding: 12px 16px; border: 1px solid #b7d8c7; border-radius: 9px; background: var(--mint); }
+.example-banner > div:first-child { display: grid; gap: 2px; }
+.example-banner strong { color: #285940; }
+.example-banner span { color: var(--muted); font-size: .88rem; }
+.example-banner-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.example-banner .form-error { width: 100%; margin: 0; }
+.example-guide { margin: 0 0 20px; padding: 20px 22px; border: 1px solid #c9dde8; border-radius: 10px; background: #f0f7fa; }
+.example-guide .eyebrow { margin: 0 0 6px; }
+.example-guide h2, .example-guide h3 { margin: 0 0 8px; font-size: 1.08rem; }
+.example-guide p:not(.eyebrow) { margin: 0 0 10px; }
+.example-guide a { font-weight: 700; }
 .back-link { display: inline-block; margin-bottom: 28px; font-weight: 700; text-decoration: none; }
 .bottom-nav { display: none; }
 .storage-warning { margin: 0 0 22px; padding: 12px 16px; border: 1px solid #e1bd75; border-radius: 9px; background: #fff8e8; }

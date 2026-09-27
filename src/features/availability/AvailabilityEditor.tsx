@@ -9,6 +9,7 @@ import { instantToLocalFields, isValidTimezone } from "@/lib/time/timezone";
 import { useAppStore } from "@/store/app-store";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { buildPlanForState } from "@/features/planning/build-plan";
+import { exampleDates, exampleShiftAdded, EXAMPLE_RECOVERY_ID } from "@/lib/demo/sample-data";
 import { buildCommitments, displayStudyWindowEnd, normalizeStudyWindowEnd, proposedStudyWindows, validateWindows, WEEKDAYS, type CommitmentInput } from "./availability";
 import { CommitmentForm } from "./CommitmentForm";
 
@@ -40,6 +41,12 @@ export function AvailabilityEditor() {
   const sortedCommitments = [...state.commitments].sort((a, b) => a.startAt.localeCompare(b.startAt));
   const upcoming = sortedCommitments.filter((item) => new Date(item.endAt).getTime() >= asOf);
   const past = sortedCommitments.filter((item) => new Date(item.endAt).getTime() < asOf);
+  const demoDates = state.mode === "example" ? exampleDates(state) : null;
+  const demoShiftAdded = state.mode === "example" && exampleShiftAdded(state);
+  const demoRecoveryEnabled = state.studyWindows.some((item) => item.id === EXAMPLE_RECOVERY_ID && item.enabled);
+  const demoDateLabel = (date: string) => new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", weekday: "long", month: "short", day: "numeric", year: "numeric",
+  }).format(new Date(`${date}T12:00:00.000Z`));
 
   function updateWindow(id: string, change: Partial<StudyWindow>) {
     setWindows((current) => current.map((window) => window.id === id ? { ...window, ...change } : window));
@@ -166,6 +173,15 @@ export function AvailabilityEditor() {
         </div>
       </header>
       {!state.plan && <SetupChecklist state={state} />}
+
+      {demoDates && <section className="example-guide" aria-label="Example walkthrough">
+        <p className="eyebrow">Try the example</p>
+        <h2>Change the sample week</h2>
+        {!demoShiftAdded ? <p>Add a <strong>work shift</strong> on {demoDateLabel(demoDates.shiftDate)} from <strong>6:00 to 8:00 PM</strong>. Save it, then return to My Plan and select Replan.</p>
+          : !demoRecoveryEnabled && state.plan?.shortfalls.length ? <p>To make room for Maths, turn on the {demoDateLabel(demoDates.repairDate)} study window from <strong>4:00 to 6:00 PM</strong>. Save availability, then Replan.</p>
+          : <p>Your sample change is saved. Return to My Plan and select Replan to see the result.</p>}
+        <Link href="/plan">Return to My Plan</Link>
+      </section>}
 
       {!state.availabilityConfirmedAt && <p className="availability-notice" role="status">These hours are suggestions. Review and save them before building your first plan.</p>}
       {state.plan && state.plan.inputRevision !== state.inputRevision && <p className="availability-notice attention" role="status">Your saved study sessions may no longer fit. <Link href="/plan">Go to My Plan to Replan</Link>.</p>}
