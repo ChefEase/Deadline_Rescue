@@ -16,7 +16,7 @@ The app is designed for one person. It does not require an account. Plans are in
 
 ## Current progress
 
-**This repository currently contains the app scaffold.** The welcome screen, navigation, and six page routes are in place. Assignment entry, scheduling, AI extraction, and Focus timing are still being built. The current screens are placeholders and should not be treated as a finished study planner.
+**Manual assignment management is available locally.** You can add, edit, complete, reopen, and delete assignments. Confirmed work is saved in this browser, with a recovery screen for invalid saved data. Availability, scheduling, AI extraction, and Focus timing are still being built, so this is not yet a finished study planner.
 
 The detailed product specification is in [Deadline_Rescue_Context.md](Deadline_Rescue_Context.md). The build order and completion checks are in [Deadline_Rescue_Development_Plan.md](Deadline_Rescue_Development_Plan.md).
 
@@ -45,7 +45,13 @@ Useful commands:
 | `npm run typecheck` | Check TypeScript types |
 | `npm run build` | Create a production build locally |
 
-No API key is needed for the scaffold. The future AI extraction endpoint will require a provider key kept in a local `.env.local` file or hosting settings, never in the repository.
+No API key is needed for the current app. The future AI extraction endpoint will require a provider key kept in a local `.env.local` file or hosting settings, never in the repository.
+
+### Phase 2 deployment handoff
+
+Import the GitHub repository into Vercel as a Next.js project. The scaffold has no required environment variables or custom build settings. Deploy the repository's intended branch, then open the public URL in a private browser window. Refresh `/plan` directly and confirm it still loads without a hosting-account login.
+
+Keep future deployments on the same Vercel project. When AI extraction is implemented, its required variable name will be added to `.env.example`; put the value in Vercel settings and `.env.local`, not in Git. The current extraction endpoint is a placeholder and returns an unavailable response.
 
 ## Project boundaries
 
