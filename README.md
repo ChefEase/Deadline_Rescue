@@ -16,7 +16,7 @@ The app is designed for one person. It does not require an account. Plans are in
 
 ## Current progress
 
-**Assignments and availability are available locally.** You can manage assignments, review and save weekly study hours, and add fixed commitments. Confirmed work is saved in this browser, with a recovery screen for invalid saved data. Scheduling, AI extraction, and Focus timing are still being built, so this is not yet a finished study planner.
+**Assignments and availability are available locally, and the deterministic scheduler is implemented and tested.** You can manage assignments, review and save weekly study hours, and add fixed commitments. Confirmed work is saved in this browser, with a recovery screen for invalid saved data. The plan screen, AI extraction, and Focus timing are still being built, so this is not yet a finished study planner.
 
 The detailed product specification is in [Deadline_Rescue_Context.md](Deadline_Rescue_Context.md). The build order and completion checks are in [Deadline_Rescue_Development_Plan.md](Deadline_Rescue_Development_Plan.md).
 
@@ -43,6 +43,7 @@ Useful commands:
 | `npm run dev` | Start the local development server |
 | `npm run lint` | Check code style and common mistakes |
 | `npm run typecheck` | Check TypeScript types |
+| `npm test` | Run the scheduler fixture and edge-case tests |
 | `npm run build` | Create a production build locally |
 
 No API key is needed for the current app. The future AI extraction endpoint will require a provider key kept in a local `.env.local` file or hosting settings, never in the repository.
