@@ -5,6 +5,8 @@ import { StoreBoundary } from "@/components/StoreBoundary";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { AssignmentForm, type AssignmentInput } from "@/features/assignments/AssignmentForm";
 import { AssignmentList } from "@/features/assignments/AssignmentList";
+import { ExtractionReview } from "@/features/assignments/ExtractionReview";
+import type { Assignment } from "@/lib/schema/types";
 import { useAppStore } from "@/store/app-store";
 
 function AssignmentsContent() {
@@ -29,6 +31,10 @@ function AssignmentsContent() {
     }));
   }
 
+  function saveExtracted(assignment: Assignment) {
+    return mutate((current) => ({ ...current, assignments: [...current.assignments, assignment] }));
+  }
+
   return (
     <div className="assignments-page">
       <header className="page-heading">
@@ -40,6 +46,7 @@ function AssignmentsContent() {
         <button className="button" onClick={() => setFormOpen(true)}>Add assignment</button>
       </header>
       {!state.plan && <SetupChecklist state={state} />}
+      <ExtractionReview timezone={state.timezone} assignments={state.assignments} onSave={saveExtracted} onManual={() => setFormOpen(true)} />
       <div className="assignment-toolbar" role="group" aria-label="Assignment status">
         <button aria-pressed={filter === "active"} onClick={() => setFilter("active")}>Active <span>{state.assignments.filter((assignment) => assignment.status === "active").length}</span></button>
         <button aria-pressed={filter === "completed"} onClick={() => setFilter("completed")}>Completed <span>{state.assignments.filter((assignment) => assignment.status === "completed").length}</span></button>

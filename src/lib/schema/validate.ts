@@ -71,7 +71,9 @@ export function isAppState(value: unknown): value is AppState {
       !assignmentIds.has(focus.assignmentId) || !instant(focus.startedAt) || !nullableInstant(focus.lastResumedAt) ||
       !integer(focus.accumulatedSeconds) || !["running", "paused", "review"].includes(String(focus.state)) ||
       (focus.state === "running") !== instant(focus.lastResumedAt) ||
-      !blocks.some((block) => block.id === focus.blockId && block.assignmentId === focus.assignmentId))) return false;
+      !blocks.some((block) => block.id === focus.blockId && block.assignmentId === focus.assignmentId && block.state === "active") ||
+      logs.some((log) => log.focusId === focus.id))) return false;
+  if (focus === null && blocks.some((block) => block.state === "active")) return false;
 
   return true;
 }

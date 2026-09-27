@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { SetupChecklist } from "@/components/SetupChecklist";
 import { formatDue, formatEffort } from "@/features/assignments/AssignmentList";
+import { startFocus } from "@/features/focus/focus-state";
 import type { AppState, Assignment, Commitment, StudyBlock } from "@/lib/schema/types";
 import { isAppState } from "@/lib/schema/validate";
 import { summarizePlanChanges, type AssignmentPlanChange } from "@/lib/scheduling/changes";
@@ -71,12 +73,21 @@ function EventRow({ event, timezone, now, stale, compact = false }: { event: Pla
   </Link>;
 }
 
-function NextUpCard({ state, now, stale }: { state: AppState; now: string; stale: boolean }) {
+function NextUpCard({ state, now, stale, onStart, starting }: { state: AppState; now: string; stale: boolean; onStart: (blockId: string) => void; starting: boolean }) {
+  if (state.activeFocus) {
+    const activeAssignment = state.assignments.find((item) => item.id === state.activeFocus?.assignmentId);
+    return <section className="next-up-card">
+      <p className="eyebrow">Focus in progress</p>
+      <h2>{activeAssignment?.title ?? "Your current session"}</h2>
+      <p className="next-up-explanation">Your session is saved. Return to it to continue or review your work.</p>
+      <Link className="button" href={`/focus/${state.activeFocus.blockId}`}>{state.activeFocus.state === "review" ? "Review Focus" : "Resume Focus"}</Link>
+    </section>;
+  }
   if (stale) {
     return <section className="next-up-card">
       <p className="eyebrow">What to do next</p>
       <h2>Refresh your plan</h2>
-      <p className="next-up-explanation">Saved sessions may no longer fit. Use Replan above before following the schedule.</p>
+      <p className="next-up-explanation">Saved sessions may no longer fit. Use Replan above. Start Focus becomes available when an updated study session begins.</p>
     </section>;
   }
   const next = state.plan?.blocks
@@ -91,7 +102,7 @@ function NextUpCard({ state, now, stale }: { state: AppState; now: string; stale
     const heading = affected
       ? deadlinePassed ? `Review ${affected.title}` : `Make time for ${affected.title}`
       : "No study session is scheduled";
-    let explanation = "There are no study sessions in this 14-day plan. Later assignments will be planned when they enter this range.";
+    let explanation = "There are no study sessions in this 14-day plan, so Start Focus is unavailable. Later assignments will be planned when they enter this range.";
     if (affected && deadlinePassed) {
       explanation = `The deadline passed with ${formatEffort(affected.remainingMinutes)} of work still listed. Review the assignment to update its deadline or mark it complete.`;
     } else if (affected) {
@@ -123,7 +134,15 @@ function NextUpCard({ state, now, stale }: { state: AppState; now: string; stale
       <div><dt>Planned time</dt><dd>{formatEffort(sessionMinutes(next))}</dd></div>
       <div><dt>Deadline</dt><dd>{formatDue(assignment.dueAt, state.timezone)}</dd></div>
     </dl>
-    <Link className="button" href={`/assignments/${assignment.id}`}>View assignment</Link>
+    <div className="next-up-action">
+      {next.startAt <= now
+        ? <button className="button" disabled={starting} onClick={() => onStart(next.id)}>{starting ? "Opening Focus…" : "Start Focus"}</button>
+        : <>
+          <button className="button" disabled aria-describedby="focus-start-help">Start Focus</button>
+          <p id="focus-start-help">Available when this session begins: {formatDue(next.startAt, state.timezone)}.</p>
+        </>}
+      <Link href={`/assignments/${assignment.id}`}>View assignment</Link>
+    </div>
   </section>;
 }
 
@@ -218,19 +237,41 @@ function readSavedDate(): string {
   catch { return ""; }
 }
 
+function readReviewNotice(): boolean {
+  try {
+    return window.sessionStorage.getItem("deadline-rescue:focus-reviewed") === "true";
+  } catch { return false; }
+}
+
 export function PlanView() {
   const { state, mutate } = useAppStore();
+  const router = useRouter();
   const [now, setNow] = useState(() => new Date().toISOString());
   const [requestedDate, setRequestedDate] = useState(readSavedDate);
+  const [reviewSaved] = useState(readReviewNotice);
   const [error, setError] = useState("");
   const [planChanges, setPlanChanges] = useState<AssignmentPlanChange[] | null>(null);
   const [building, setBuilding] = useState(false);
+  const [starting, setStarting] = useState(false);
   const buildingRef = useRef(false);
+  const startingRef = useRef(false);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date().toISOString()), 60_000);
-    return () => window.clearInterval(timer);
+    // Sessions begin on minute boundaries; align updates so Focus unlocks on time.
+    let timer: number;
+    const tick = () => {
+      setNow(new Date().toISOString());
+      timer = window.setTimeout(tick, 60_000 - (Date.now() % 60_000) + 20);
+    };
+    const onVisible = () => { if (!document.hidden) setNow(new Date().toISOString()); };
+    timer = window.setTimeout(tick, 60_000 - (Date.now() % 60_000) + 20);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { window.clearTimeout(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
+  useEffect(() => {
+    if (!reviewSaved) return;
+    try { window.sessionStorage.removeItem("deadline-rescue:focus-reviewed"); } catch { /* The confirmation remains visible for this visit. */ }
+  }, [reviewSaved]);
   if (!state) return null;
 
   const activeCount = state.assignments.filter((assignment) => assignment.status === "active").length;
@@ -281,6 +322,25 @@ export function PlanView() {
     }
   }
 
+  function startSession(blockId: string) {
+    if (!state || startingRef.current) return;
+    startingRef.current = true;
+    setStarting(true);
+    setError("");
+    try {
+      const focusId = crypto.randomUUID();
+      const started = startFocus(state, blockId, focusId, new Date().toISOString());
+      const result = mutate(() => started);
+      if (!result.ok) { setError(result.reason); startingRef.current = false; setStarting(false); return; }
+      try { window.sessionStorage.setItem("deadline-rescue:fresh-focus", focusId); } catch { /* Focus still starts without a tab marker. */ }
+      router.push(`/focus/${blockId}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Focus could not start.");
+      startingRef.current = false;
+      setStarting(false);
+    }
+  }
+
   let statusTitle: string;
   let statusText: string;
   if (!activeCount) {
@@ -328,6 +388,7 @@ export function PlanView() {
       <Link className="button button-secondary" href="/assignments">Add assignment</Link>
     </header>
     {state.mode === "example" && <p className="availability-notice">Example data</p>}
+    {reviewSaved && <p className="save-message" role="status">Progress saved. Your future study plan has been updated.</p>}
     <section className="plan-status" data-tone={stale || needsAttention ? "attention" : "calm"} aria-live="polite">
       <div><p className="eyebrow">What your plan found</p><h2>{statusTitle}</h2><p>{statusText}</p></div>
       {activeCount > 0 && confirmed && (!plan || stale) && <button className="button" disabled={building} onClick={buildPlan}>{building ? "Building…" : plan ? "Replan" : "Build my plan"}</button>}
@@ -340,7 +401,7 @@ export function PlanView() {
       : <>
         <div className="plan-main-grid">
           <div className="plan-primary">
-            <NextUpCard state={state} now={now} stale={stale} />
+            <NextUpCard state={state} now={now} stale={stale} onStart={startSession} starting={starting} />
             <div className="date-controls">
               <button aria-label="Previous day" disabled={selectedDate <= firstDate} onClick={() => selectDate(addLocalDays(selectedDate, -1))}>←</button>
               <label>Day to view <input type="date" min={firstDate} max={lastDate} value={selectedDate} onChange={(event) => selectDate(event.target.value)} /></label>

@@ -16,7 +16,7 @@ The app is designed for one person. It does not require an account. Plans are in
 
 ## Current progress
 
-**The setup journey, My Plan, and explicit replanning are available locally.** You can add assignments, confirm study hours, add fixed commitments, and build a 14-day plan. Changes to scheduling inputs mark the plan as needing an update; Replan shows sessions that moved, were added, were removed, or became unscheduled. Completed and missed session history is preserved. Saved work stays in this browser, with a recovery screen for invalid saved data. Focus timing and AI extraction are still being built.
+**The setup journey, My Plan, replanning, Focus, and reviewed AI extraction are available locally.** You can add assignments manually or paste instructions for AI suggestions, confirm study hours, add fixed commitments, and build a 14-day plan. AI suggestions are saved only after you review and confirm each deadline, time, and work estimate. Changes to scheduling inputs mark the plan as needing an update; Replan explains what changed. During a current session, Focus can run, pause, resume after refresh, and ask you to confirm actual work before saving progress and updating the plan. Saved work stays in this browser, with a recovery screen for invalid saved data.
 
 The detailed product specification is in [Deadline_Rescue_Context.md](Deadline_Rescue_Context.md). The build order and completion checks are in [Deadline_Rescue_Development_Plan.md](Deadline_Rescue_Development_Plan.md).
 
@@ -43,16 +43,16 @@ Useful commands:
 | `npm run dev` | Start the local development server |
 | `npm run lint` | Check code style and common mistakes |
 | `npm run typecheck` | Check TypeScript types |
-| `npm test` | Run the scheduler fixture and edge-case tests |
+| `npm test` | Run the scheduler, Focus, and extraction tests |
 | `npm run build` | Create a production build locally |
 
-No API key is needed for the current app. The future AI extraction endpoint will require a provider key kept in a local `.env.local` file or hosting settings, never in the repository.
+Manual entry, planning, and Focus need no API key. To use AI extraction, create a Replicate API token and put `REPLICATE_API_TOKEN=your_token` in `.env.local`, then restart the local development server. The server calls Replicate's official `meta/meta-llama-3-70b-instruct` model. Pasted text and its reference date/time zone go to Replicate; saved assignments remain in this browser. Without a token, the paste form explains that extraction is unavailable and manual entry still works.
 
 ### Phase 2 deployment handoff
 
-Import the GitHub repository into Vercel as a Next.js project. The scaffold has no required environment variables or custom build settings. Deploy the repository's intended branch, then open the public URL in a private browser window. Refresh `/plan` directly and confirm it still loads without a hosting-account login.
+Import the GitHub repository into Vercel as a Next.js project. Manual features have no required environment variables or custom build settings. Deploy the repository's intended branch, then open the public URL in a private browser window. Refresh `/plan` directly and confirm it still loads without a hosting-account login.
 
-Keep future deployments on the same Vercel project. When AI extraction is implemented, its required variable name will be added to `.env.example`; put the value in Vercel settings and `.env.local`, not in Git. The current extraction endpoint is a placeholder and returns an unavailable response.
+Keep future deployments on the same Vercel project. To enable AI extraction there, add `REPLICATE_API_TOKEN` in the project environment settings. The in-memory request limit is basic per server instance, so a public high-traffic deployment needs a shared rate limiter.
 
 ## Project boundaries
 

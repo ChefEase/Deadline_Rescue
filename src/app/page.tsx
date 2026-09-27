@@ -12,7 +12,9 @@ function WelcomeContent() {
 
   useEffect(() => {
     if (!state) return;
-    if (state.plan || state.assignments.some((item) => item.status === "completed")) {
+    if (state.activeFocus) {
+      router.replace(`/focus/${state.activeFocus.blockId}`);
+    } else if (state.plan || state.assignments.some((item) => item.status === "completed")) {
       router.replace("/plan");
     } else if (state.assignments.some((item) => item.status === "active")) {
       router.replace(state.availabilityConfirmedAt ? "/plan" : "/availability");
