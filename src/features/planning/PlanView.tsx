@@ -8,20 +8,17 @@ import { formatDue, formatEffort } from "@/features/assignments/AssignmentList";
 import { startFocus } from "@/features/focus/focus-state";
 import { TryExampleButton } from "@/features/demo/ExampleControls";
 import { exampleDates, exampleShiftAdded, EXAMPLE_RECOVERY_ID } from "@/lib/demo/sample-data";
-import type { AppState, Assignment, Commitment, StudyBlock } from "@/lib/schema/types";
+import type { AppState, StudyBlock } from "@/lib/schema/types";
 import { isAppState } from "@/lib/schema/validate";
 import { summarizePlanChanges, type AssignmentPlanChange } from "@/lib/scheduling/changes";
-import { localDayStart, SchedulingError } from "@/lib/scheduling/scheduler";
+import { SchedulingError } from "@/lib/scheduling/scheduler";
 import { addLocalDays, instantToLocalFields } from "@/lib/time/timezone";
 import { useAppStore } from "@/store/app-store";
 import { buildPlanForState } from "./build-plan";
+import { eventsForDate, type PlanEvent } from "./plan-events";
 import { PlanChanges } from "./PlanChanges";
 
 const DATE_KEY = "deadline-rescue:plan-date";
-
-type PlanEvent =
-  | { kind: "session"; startAt: string; endAt: string; block: StudyBlock; assignment: Assignment }
-  | { kind: "commitment"; startAt: string; endAt: string; commitment: Commitment };
 
 function formatClock(instant: string, timezone: string): string {
   return new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(new Date(instant));
@@ -31,30 +28,19 @@ function formatDay(date: string, options: Intl.DateTimeFormatOptions = { weekday
   return new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" }).format(new Date(`${date}T12:00:00.000Z`));
 }
 
-function eventsForDate(state: AppState, date: string): PlanEvent[] {
-  // Use local day boundaries so sessions and commitments crossing midnight appear on both days.
-  const dayStart = localDayStart(date, state.timezone);
-  const nextDayStart = localDayStart(addLocalDays(date, 1), state.timezone);
-  const overlapsDay = (startAt: string, endAt: string) => startAt < nextDayStart && endAt > dayStart;
-  const assignments = new Map(state.assignments.map((assignment) => [assignment.id, assignment]));
-  const sessions: PlanEvent[] = (state.plan?.blocks ?? []).flatMap((block) => {
-    const assignment = assignments.get(block.assignmentId);
-    return assignment && overlapsDay(block.startAt, block.endAt)
-      ? [{ kind: "session" as const, startAt: block.startAt, endAt: block.endAt, block, assignment }]
-      : [];
-  });
-  const commitments: PlanEvent[] = state.commitments
-    .filter((commitment) => overlapsDay(commitment.startAt, commitment.endAt))
-    .map((commitment) => ({ kind: "commitment", startAt: commitment.startAt, endAt: commitment.endAt, commitment }));
-  return [...sessions, ...commitments].sort((a, b) => a.startAt.localeCompare(b.startAt) || a.kind.localeCompare(b.kind));
-}
-
 function sessionMinutes(block: StudyBlock): number {
   return (Date.parse(block.endAt) - Date.parse(block.startAt)) / 60_000;
 }
 
 function EventRow({ event, timezone, now, stale, compact = false }: { event: PlanEvent; timezone: string; now: string; stale: boolean; compact?: boolean }) {
   const time = `${formatClock(event.startAt, timezone)}–${formatClock(event.endAt, timezone)}`;
+  if (event.kind === "availability") {
+    return <Link href="/availability" className={`plan-event availability-event${compact ? " compact" : ""}`}>
+      <span className="event-type">Available to study</span>
+      <strong>{time}</strong>
+      {!compact && <span>Study sessions are planned inside these hours.</span>}
+    </Link>;
+  }
   if (event.kind === "commitment") {
     return <div className={`plan-event commitment-event${compact ? " compact" : ""}`}>
       <span className="event-type">Commitment</span>
@@ -64,7 +50,7 @@ function EventRow({ event, timezone, now, stale, compact = false }: { event: Pla
   }
   // A passed, unconfirmed block is shown as missed even before Replan stores that state.
   const sessionLabel = event.block.state === "scheduled"
-    ? event.block.endAt <= now ? "Missed session" : stale ? "Saved session · needs update" : "Study session"
+    ? event.block.endAt <= now ? "Missed session" : stale ? "Saved session · needs update" : "Planned study session"
     : `${event.block.state} session`;
   const needsReview = event.block.state === "missed" ||
     (event.block.state === "scheduled" && (stale || event.block.endAt <= now));
@@ -184,8 +170,8 @@ function ExampleGuide({ state, stale }: { state: AppState; stale: boolean }) {
 function Agenda({ state, date, now, stale }: { state: AppState; date: string; now: string; stale: boolean }) {
   const events = eventsForDate(state, date);
   return <section className="agenda-view" aria-labelledby="agenda-heading">
-    <div className="section-heading"><div><p className="eyebrow">Daily agenda</p><h2 id="agenda-heading">{formatDay(date)}</h2></div></div>
-    {events.length === 0 ? <p className="agenda-empty">No study sessions or commitments on this day.</p> : <div className="agenda-events">{events.map((event) => <EventRow key={`${event.kind}:${event.kind === "session" ? event.block.id : event.commitment.id}`} event={event} timezone={state.timezone} now={now} stale={stale} />)}</div>}
+    <div className="section-heading"><div><p className="eyebrow">Daily agenda</p><h2 id="agenda-heading">{formatDay(date)}</h2><p>Planned sessions, free study hours, and commitments.</p></div></div>
+    {events.length === 0 ? <p className="agenda-empty">No study sessions, free study hours, or commitments on this day.</p> : <div className="agenda-events">{events.map((event) => <EventRow key={event.kind === "session" ? `session:${event.block.id}` : event.kind === "commitment" ? `commitment:${event.commitment.id}` : `availability:${event.startAt}:${event.endAt}`} event={event} timezone={state.timezone} now={now} stale={stale} />)}</div>}
   </section>;
 }
 
@@ -199,14 +185,14 @@ function WeekCalendar({ state, date, lastDate, needsAttention, now, stale }: { s
   return <section className="week-calendar" aria-labelledby="calendar-heading">
     <div className="section-heading"><div><p className="eyebrow">Calendar</p><h2 id="calendar-heading">{date === endDate
       ? formatDay(date, { month: "short", day: "numeric", year: "numeric" })
-      : `${formatDay(date, { month: "short", day: "numeric" })} to ${formatDay(endDate, { month: "short", day: "numeric", year: "numeric" })}`}</h2></div></div>
-    {!hasEvents && <p className="calendar-empty-state">No study sessions or commitments are scheduled in these days. {needsAttention
+      : `${formatDay(date, { month: "short", day: "numeric" })} to ${formatDay(endDate, { month: "short", day: "numeric", year: "numeric" })}`}</h2><p>Planned sessions, free study hours, and commitments.</p></div></div>
+    {!hasEvents && <p className="calendar-empty-state">No study sessions, free study hours, or commitments are shown in these days. {needsAttention
       ? "See the work needing attention below for the reason."
       : "Choose another day to see sessions elsewhere in the plan."}</p>}
     {hasEvents && <div className="calendar-grid">{days.map((day) => {
       return <div className="calendar-day" key={day.date} data-selected={day.date === date}>
         <h3>{formatDay(day.date, { weekday: "short", month: "short", day: "numeric" })}</h3>
-        {day.events.length === 0 ? <p className="calendar-empty">Nothing scheduled</p> : day.events.map((event) => <EventRow key={`${event.kind}:${event.kind === "session" ? event.block.id : event.commitment.id}`} event={event} timezone={state.timezone} now={now} stale={stale} compact />)}
+        {day.events.length === 0 ? <p className="calendar-empty">Nothing planned</p> : day.events.map((event) => <EventRow key={event.kind === "session" ? `session:${event.block.id}` : event.kind === "commitment" ? `commitment:${event.commitment.id}` : `availability:${event.startAt}:${event.endAt}`} event={event} timezone={state.timezone} now={now} stale={stale} compact />)}
       </div>;
     })}</div>}
   </section>;

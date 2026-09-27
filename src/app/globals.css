@@ -234,6 +234,7 @@ h1, h2, h3 { overflow-wrap: anywhere; }
 .plan-event { display: grid; gap: 4px; padding: 13px 15px; border: 1px solid #b7d8c7; border-left: 4px solid #72aa8a; border-radius: 8px; background: #f5faf6; color: var(--ink); font-size: .87rem; text-decoration: none; overflow-wrap: anywhere; }
 .plan-event.attention-event { border-color: #e7c1a9; border-left-color: #d28274; background: #fffaf7; }
 .plan-event.commitment-event { border-color: #c8d8e8; border-left-color: #72a3cf; background: #f5f9fc; }
+.plan-event.availability-event { border-color: #e4dcc4; border-left-color: #a8976d; background: #fbfaf4; }
 .plan-event .event-type { color: var(--muted); font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
 .plan-event strong { font-size: .94rem; }
 .plan-event.compact { padding: 9px; font-size: .75rem; }
