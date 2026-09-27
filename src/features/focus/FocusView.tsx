@@ -59,7 +59,9 @@ export function FocusView({ sessionId }: { sessionId: string }) {
   const expired = Boolean(block && block.endAt <= now);
   const planCurrent = Boolean(state?.plan && state.plan.inputRevision === state.inputRevision &&
     state.plan.horizonEndAt > now && !state.plan.blocks.some((item) => item.state === "scheduled" && item.endAt <= now));
-  const canStart = Boolean(block && block.state === "scheduled" && block.startAt <= now && !expired && planCurrent);
+  const earlyExampleStart = Boolean(state?.mode === "example" && block &&
+    Date.parse(block.startAt) - Date.parse(now) <= 15 * 60_000);
+  const canStart = Boolean(block && block.state === "scheduled" && (block.startAt <= now || earlyExampleStart) && !expired && planCurrent);
 
   useEffect(() => {
     if (!focus) return;
@@ -115,12 +117,13 @@ export function FocusView({ sessionId }: { sessionId: string }) {
     router.push("/plan");
   }
 
-  function saveReview(event: FormEvent<HTMLFormElement>) {
+  async function saveReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!focus || savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     setError("");
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     let saved = false;
     try {
       const reviewed = reviewFocus(state!, {
@@ -150,7 +153,8 @@ export function FocusView({ sessionId }: { sessionId: string }) {
 
     {!focus && <div className="focus-state">
       <h2>{canStart ? "Ready to begin?" : "This session cannot start now"}</h2>
-      <p>{!planCurrent ? "Replan from My Plan before using saved sessions."
+      <p>{canStart ? "Your plan is ready. Focus tracks time here; you confirm your actual work when you finish."
+        : !planCurrent ? "Replan from My Plan before using saved sessions."
         : block.state !== "scheduled" ? "This session was already completed or missed."
           : block.startAt > now ? "The planned start time has not arrived yet."
             : "This planned session has ended. Replan from My Plan."}</p>
@@ -193,7 +197,7 @@ export function FocusView({ sessionId }: { sessionId: string }) {
         <input type="number" min="1" step="1" required value={remainingMinutes} onChange={(event) => setRemainingMinutes(event.target.value)} />
       </label>}
       {!finished && Number(remainingMinutes) === 0 && <p className="field-help">If no work remains, choose “Yes, it is finished.”</p>}
-      <button className="button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save progress and update plan"}</button>
+      <button className="button" type="submit" disabled={saving} aria-busy={saving}>{saving ? "Saving…" : "Save progress and update plan"}</button>
     </form>}
   </section>;
 }

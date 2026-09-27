@@ -18,15 +18,15 @@ export function formatEffort(minutes: number): string {
 }
 
 function scheduleStatus(assignment: Assignment, plan: Plan | null, inputRevision: number, asOf: number) {
-  if (assignment.status === "completed") return { text: "Completed", attention: false };
-  if (new Date(assignment.dueAt).getTime() < asOf) return { text: "Overdue · needs a new deadline", attention: true };
-  if (!plan) return { text: "Not planned yet", attention: false };
-  if (plan.inputRevision !== inputRevision) return { text: "Needs update", attention: true };
+  if (assignment.status === "completed") return { text: "Completed", tone: "calm", icon: "✓" };
+  if (new Date(assignment.dueAt).getTime() < asOf) return { text: "Overdue · needs a new deadline", tone: "attention", icon: "!" };
+  if (!plan) return { text: "Not planned yet", tone: "neutral", icon: "→" };
+  if (plan.inputRevision !== inputRevision) return { text: "Needs update", tone: "attention", icon: "!" };
   const shortfall = plan.shortfalls.find((item) => item.assignmentId === assignment.id);
-  if (shortfall) return { text: `Shortfall: ${formatEffort(shortfall.unscheduledMinutes)}`, attention: true };
-  if (plan.outsideHorizonIds.includes(assignment.id)) return { text: "Outside planning range", attention: false };
-  return { text: plan.blocks.some((block) => block.assignmentId === assignment.id && block.state === "scheduled")
-    ? "Scheduled" : "Not scheduled", attention: false };
+  if (shortfall) return { text: `Shortfall: ${formatEffort(shortfall.unscheduledMinutes)}`, tone: "attention", icon: "!" };
+  if (plan.outsideHorizonIds.includes(assignment.id)) return { text: "Outside planning range", tone: "neutral", icon: "→" };
+  const scheduled = plan.blocks.some((block) => block.assignmentId === assignment.id && block.state === "scheduled");
+  return { text: scheduled ? "Scheduled" : "Not scheduled", tone: scheduled ? "calm" : "neutral", icon: scheduled ? "✓" : "→" };
 }
 
 export function AssignmentList({ assignments, timezone, status, plan, inputRevision }: {
@@ -40,7 +40,7 @@ export function AssignmentList({ assignments, timezone, status, plan, inputRevis
       <div className="empty-state">
         <h2>{status === "active" ? "No assignments yet" : "Nothing completed yet"}</h2>
         <p>{status === "active"
-          ? "Add an assignment manually to begin. Pasting instructions will be available in a later phase."
+          ? "Add an assignment manually or paste instructions above to find deadlines."
           : "Completed work will appear here."}</p>
       </div>
     );
@@ -60,7 +60,7 @@ export function AssignmentList({ assignments, timezone, status, plan, inputRevis
               <div className="assignment-meta">
                 <span><strong>Due</strong> {formatDue(assignment.dueAt, timezone)}</span>
                 <span><strong>Remaining</strong> {status === "completed" ? "Complete" : formatEffort(assignment.remainingMinutes)}</span>
-                <span className="status-label" data-tone={scheduling.attention ? "attention" : undefined}>{scheduling.text}</span>
+                <span className="status-label" data-tone={scheduling.tone}><span aria-hidden="true">{scheduling.icon}</span>{scheduling.text}</span>
               </div>
             </Link>
           </li>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import type { Commitment } from "@/lib/schema/types";
 import { instantToLocalFields } from "@/lib/time/timezone";
 import type { CommitmentInput } from "./availability";
@@ -23,6 +23,9 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
   onSave: (input: CommitmentInput) => { ok: boolean; reason?: string };
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const headingId = useId();
+  const descriptionId = useId();
   const savingRef = useRef(false);
   const [draft, setDraft] = useState<Draft>(() => commitment ? {
     title: commitment.title,
@@ -32,6 +35,7 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
     category: commitment.category || "",
   } : blank);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const initialDraft = useRef(JSON.stringify(draft));
 
   useEffect(() => {
@@ -39,9 +43,14 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
     if (!dialog) return;
     if (open && !dialog.open) {
       savingRef.current = false;
+      returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       dialog.showModal();
     }
-    if (!open && dialog.open) dialog.close();
+    if (!open && dialog.open) {
+      dialog.close();
+      // Escape and Close both restore keyboard focus to the opener.
+      if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+    }
   }, [open]);
 
   useEffect(() => {
@@ -55,7 +64,9 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
   }, [open, draft]);
 
   function closePanel() {
-    // The parent owns the open state; closing must not wait for browser navigation.
+    // Close before the parent switches an edited commitment back to a blank form.
+    if (dialogRef.current?.open) dialogRef.current.close();
+    if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
     onClose();
   }
 
@@ -64,41 +75,51 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
     setError("");
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (savingRef.current) return;
     savingRef.current = true;
-    const result = onSave({
-      title: draft.title.trim(),
-      date: draft.date,
-      start: draft.start,
-      end: draft.end,
-      category: draft.category || null,
-    });
-    if (result.ok) {
-      setError("");
-      if (!commitment) {
-        setDraft(blank);
-        initialDraft.current = JSON.stringify(blank);
+    setSaving(true);
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    try {
+      const result = onSave({
+        title: draft.title.trim(),
+        date: draft.date,
+        start: draft.start,
+        end: draft.end,
+        category: draft.category || null,
+      });
+      if (result.ok) {
+        setError("");
+        if (!commitment) {
+          setDraft(blank);
+          initialDraft.current = JSON.stringify(blank);
+        }
+        closePanel();
+        setSaving(false);
+      } else {
+        setError(result.reason || "Could not save this commitment.");
+        savingRef.current = false;
+        setSaving(false);
       }
-      closePanel();
-    } else {
-      setError(result.reason || "Could not save this commitment.");
+    } catch {
+      setError("Could not save this commitment.");
       savingRef.current = false;
+      setSaving(false);
     }
   }
 
   return (
-    <dialog ref={dialogRef} className="assignment-dialog" onCancel={(event) => { event.preventDefault(); closePanel(); }}>
-      <form className="assignment-form" onSubmit={submit}>
+    <dialog ref={dialogRef} className="assignment-dialog" aria-labelledby={headingId} aria-describedby={descriptionId} onCancel={(event) => { event.preventDefault(); if (!savingRef.current) closePanel(); }}>
+      <form className="assignment-form" onSubmit={submit} aria-busy={saving}>
         <div className="dialog-heading">
           <div>
             <p className="eyebrow">Commitments</p>
-            <h2>{commitment ? "Edit commitment" : "Add commitment"}</h2>
+            <h2 id={headingId}>{commitment ? "Edit commitment" : "Add commitment"}</h2>
           </div>
-          <button type="button" className="text-button" onClick={closePanel}>Close</button>
+          <button type="button" className="text-button" disabled={saving} onClick={closePanel}>Close</button>
         </div>
-        <p className="muted">Block class, work, or personal time that you cannot study.</p>
+        <p className="muted" id={descriptionId}>Block class, work, or personal time that you cannot study.</p>
         <label>
           Title <span aria-hidden="true">*</span>
           <input autoFocus required maxLength={120} value={draft.title} onChange={(event) => change("title", event.target.value)} />
@@ -129,8 +150,8 @@ export function CommitmentForm({ open, timezone, commitment, onClose, onSave }: 
         </label>
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="action-row">
-          <button className="button" type="submit">Save commitment</button>
-          <button className="button button-secondary" type="button" onClick={closePanel}>Keep draft and close</button>
+          <button className="button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save commitment"}</button>
+          <button className="button button-secondary" type="button" disabled={saving} onClick={closePanel}>Keep draft and close</button>
         </div>
       </form>
     </dialog>

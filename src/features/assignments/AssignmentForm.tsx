@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import type { Assignment } from "@/lib/schema/types";
 import { instantToLocalFields, localDateTimeToInstant } from "@/lib/time/timezone";
 
@@ -32,6 +32,9 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
   onClose: () => void;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const headingId = useId();
+  const descriptionId = useId();
   const savingRef = useRef(false);
   const [draft, setDraft] = useState<Draft>(() => assignment
     ? {
@@ -44,6 +47,7 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
       }
     : emptyDraft);
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const initialDraft = useRef(JSON.stringify(draft));
 
   useEffect(() => {
@@ -51,9 +55,14 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
     if (!dialog) return;
     if (open && !dialog.open) {
       savingRef.current = false;
+      returnFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       dialog.showModal();
     }
-    if (!open && dialog.open) dialog.close();
+    if (!open && dialog.open) {
+      dialog.close();
+      // Native dialogs trap focus while open; return it to the control that opened the form.
+      if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
+    }
   }, [open]);
 
   useEffect(() => {
@@ -68,7 +77,9 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
   }, [open, draft]);
 
   function closePanel() {
-    // The parent owns the open state; close it directly instead of waiting for navigation.
+    // Close before a saved edit can remount the keyed form, then restore its opener.
+    if (dialogRef.current?.open) dialogRef.current.close();
+    if (returnFocusRef.current?.isConnected) returnFocusRef.current.focus();
     onClose();
   }
 
@@ -77,7 +88,7 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
     setError("");
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (savingRef.current) return;
     const title = draft.title.trim();
@@ -101,17 +112,28 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
       return;
     }
     savingRef.current = true;
-    const result = onSave({ title, course, notes, dueAt, remainingMinutes });
-    if (result.ok) {
-      setError("");
-      if (!assignment) {
-        setDraft(emptyDraft);
-        initialDraft.current = JSON.stringify(emptyDraft);
+    setSaving(true);
+    // Yield once so the pending label is visible before the browser storage write.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    try {
+      const result = onSave({ title, course, notes, dueAt, remainingMinutes });
+      if (result.ok) {
+        setError("");
+        if (!assignment) {
+          setDraft(emptyDraft);
+          initialDraft.current = JSON.stringify(emptyDraft);
+        }
+        closePanel();
+        setSaving(false);
+      } else {
+        setError(result.reason || "Could not save this assignment.");
+        savingRef.current = false;
+        setSaving(false);
       }
-      closePanel();
-    } else {
-      setError(result.reason || "Could not save this assignment.");
+    } catch {
+      setError("Could not save this assignment.");
       savingRef.current = false;
+      setSaving(false);
     }
   }
 
@@ -119,17 +141,19 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
     <dialog
       ref={dialogRef}
       className="assignment-dialog"
-      onCancel={(event) => { event.preventDefault(); closePanel(); }}
+      aria-labelledby={headingId}
+      aria-describedby={descriptionId}
+      onCancel={(event) => { event.preventDefault(); if (!savingRef.current) closePanel(); }}
     >
-      <form onSubmit={submit} className="assignment-form">
+      <form onSubmit={submit} className="assignment-form" aria-busy={saving}>
         <div className="dialog-heading">
           <div>
             <p className="eyebrow">Assignments</p>
-            <h2>{assignment ? "Edit assignment" : "Add assignment"}</h2>
+            <h2 id={headingId}>{assignment ? "Edit assignment" : "Add assignment"}</h2>
           </div>
-          <button type="button" className="text-button" onClick={closePanel}>Close</button>
+          <button type="button" className="text-button" disabled={saving} onClick={closePanel}>Close</button>
         </div>
-        <p className="muted">Enter the time you still need. Your deadline stays exactly as you set it.</p>
+        <p className="muted" id={descriptionId}>Enter the time you still need. Your deadline stays exactly as you set it.</p>
         <label>
           Title <span aria-hidden="true">*</span>
           <input autoFocus required maxLength={120} value={draft.title} onChange={(event) => change("title", event.target.value)} />
@@ -168,8 +192,8 @@ export function AssignmentForm({ open, timezone, assignment, onSave, onClose }: 
         </label>
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="action-row">
-          <button className="button" type="submit">Save assignment</button>
-          <button className="button button-secondary" type="button" onClick={closePanel}>Keep draft and close</button>
+          <button className="button" type="submit" disabled={saving}>{saving ? "Saving…" : "Save assignment"}</button>
+          <button className="button button-secondary" type="button" disabled={saving} onClick={closePanel}>Keep draft and close</button>
         </div>
       </form>
     </dialog>

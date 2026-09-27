@@ -140,10 +140,7 @@ function NextUpCard({ state, now, stale, onStart, starting }: { state: AppState;
     <div className="next-up-action">
       {next.startAt <= now || earlyExampleStart
         ? <button className="button" disabled={starting} onClick={() => onStart(next.id)}>{starting ? "Opening Focus…" : earlyExampleStart && next.startAt > now ? "Try Focus now" : "Start Focus"}</button>
-        : <>
-          <button className="button" disabled aria-describedby="focus-start-help">Start Focus</button>
-          <p id="focus-start-help">Available when this session begins: {formatDue(next.startAt, state.timezone)}.</p>
-        </>}
+        : <p>Focus opens when this session begins: {formatDue(next.startAt, state.timezone)}.</p>}
       <Link href={`/assignments/${assignment.id}`}>View assignment</Link>
     </div>
     {earlyExampleStart && next.startAt > now && <p className="field-help">The example lets you start this session early. Focus records only the time you actually work.</p>}
@@ -332,11 +329,13 @@ export function PlanView() {
     try { window.sessionStorage.setItem(DATE_KEY, date); } catch { /* Date selection still works in memory. */ }
   }
 
-  function buildPlan() {
+  async function buildPlan() {
     if (buildingRef.current) return;
     buildingRef.current = true;
     setBuilding(true);
     setError("");
+    // Let the pending state render before the deterministic scheduler runs.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     try {
       const referenceNow = new Date().toISOString();
       const generated = buildPlanForState(state!, referenceNow);
@@ -420,15 +419,20 @@ export function PlanView() {
     statusText = "Your active work fits in the confirmed study time before its deadlines.";
   }
 
+  const statusTone = !activeCount || (confirmed && plan && !stale && !needsAttention) ? "calm" : "attention";
+
   return <div className="plan-page">
     <header className="page-heading">
       <div><p className="eyebrow">My Plan</p><h1>Your study plan</h1><p>Times shown in {state.timezone.replaceAll("_", " ")}</p></div>
       <div className="plan-header-actions"><Link className="button button-secondary" href="/assignments">Add assignment</Link>{state.mode === "personal" && <TryExampleButton quiet />}</div>
     </header>
     {reviewSaved && <p className="save-message" role="status">Progress saved. Your future study plan has been updated.</p>}
-    <section id="plan-status" className="plan-status" data-tone={stale || needsAttention ? "attention" : "calm"} aria-live="polite">
-      <div><p className="eyebrow">What your plan found</p><h2>{statusTitle}</h2><p>{statusText}</p></div>
-      {activeCount > 0 && confirmed && (!plan || stale) && <button className="button" disabled={building} onClick={buildPlan}>{building ? "Building…" : plan ? "Replan" : "Build my plan"}</button>}
+    <section id="plan-status" className="plan-status" data-tone={statusTone}>
+      <div className="plan-status-summary" role="status" aria-live="polite" aria-atomic="true">
+        <span className="plan-status-icon" aria-hidden="true">{statusTone === "calm" ? "✓" : "!"}</span>
+        <div><p className="eyebrow">What your plan found</p><h2>{statusTitle}</h2><p>{statusText}</p></div>
+      </div>
+      {activeCount > 0 && confirmed && (!plan || stale) && <button className="button" disabled={building} aria-busy={building} onClick={buildPlan}>{building ? "Building…" : plan ? "Replan" : "Build my plan"}</button>}
     </section>
     {error && <p className="form-error" role="alert">{error}</p>}
     {planChanges && <PlanChanges changes={planChanges} onDismiss={() => setPlanChanges(null)} />}

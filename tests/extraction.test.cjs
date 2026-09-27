@@ -13,6 +13,7 @@ require.extensions[".ts"] = (module, filename) => {
 };
 
 const { parseExtractionRequest, parseModelDrafts, confirmedAssignment, duplicateAssignment } = require("../src/lib/extraction/drafts.ts");
+const { extractWithReplicate } = require("../src/lib/extraction/replicate.ts");
 
 const text = "Math essay due October 2 at 9 PM. Chemistry report due later.";
 const suggestion = {
@@ -49,4 +50,33 @@ test("only an explicitly confirmed draft with a full deadline and effort can be 
   assert.equal(saved.source.editedByUser, false);
   assert.equal(duplicateAssignment(" MATH  essay ", saved.dueAt, [saved]), true);
   assert.equal(duplicateAssignment("Math essay", "2026-10-04T00:00:00.000Z", [saved]), false);
+});
+
+test("missing or ambiguous extracted deadlines require a corrected date and time", () => {
+  const missing = parseModelDrafts(JSON.stringify({ assignments: [{ ...suggestion, date: "", time: "", warnings: ["Deadline is unclear."] }] }), text).drafts[0];
+  const review = { ...missing, id: "draft-2", originalDate: "", originalTime: "",
+    hours: "1", minutes: "0", confirmed: true, skipped: false };
+  assert.ok(missing.warnings.includes("Deadline is unclear."));
+  assert.throws(() => confirmedAssignment(review, "America/Halifax", "2026-09-27T12:00:00.000Z", "assignment-2"));
+  assert.throws(() => confirmedAssignment({ ...review, date: "2026-11-01", time: "01:30" }, "America/Halifax", "2026-09-27T12:00:00.000Z", "assignment-2"));
+  assert.equal(confirmedAssignment({ ...review, date: "2026-10-02", time: "21:00" }, "America/Halifax", "2026-09-27T12:00:00.000Z", "assignment-2").remainingMinutes, 60);
+});
+
+test("AI configuration and provider failures return safe error codes", async () => {
+  const previousToken = process.env.REPLICATE_API_TOKEN;
+  const previousFetch = global.fetch;
+  const request = { text, timezone: "America/Halifax", referenceDate: "2026-09-27" };
+  try {
+    delete process.env.REPLICATE_API_TOKEN;
+    await assert.rejects(extractWithReplicate(request), { code: "unconfigured" });
+    process.env.REPLICATE_API_TOKEN = "test-token";
+    global.fetch = async () => new Response("unauthorized", { status: 401 });
+    await assert.rejects(extractWithReplicate(request), { code: "unavailable" });
+    global.fetch = async () => { throw new DOMException("timed out", "TimeoutError"); };
+    await assert.rejects(extractWithReplicate(request), { code: "timeout" });
+  } finally {
+    if (previousToken === undefined) delete process.env.REPLICATE_API_TOKEN;
+    else process.env.REPLICATE_API_TOKEN = previousToken;
+    global.fetch = previousFetch;
+  }
 });

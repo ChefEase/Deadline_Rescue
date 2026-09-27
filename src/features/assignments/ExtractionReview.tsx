@@ -15,11 +15,13 @@ export function ExtractionReview({ timezone, assignments, onSave, onManual }: {
   const [drafts, setDrafts] = useState<ReviewDraft[]>([]);
   const [limitWarning, setLimitWarning] = useState(false);
   const [pending, setPending] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const pendingRef = useRef(false);
   const requestVersion = useRef(0);
   const savedKeys = useRef(new Set<string>());
+  const savingRef = useRef(false);
 
   async function extract(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,7 +61,8 @@ export function ExtractionReview({ timezone, assignments, onSave, onManual }: {
     setError("");
   }
 
-  function save(draft: ReviewDraft) {
+  async function save(draft: ReviewDraft) {
+    if (savingRef.current) return;
     setError("");
     setMessage("");
     try {
@@ -69,6 +72,9 @@ export function ExtractionReview({ timezone, assignments, onSave, onManual }: {
         setError("This title and deadline already exist. Skip this draft or change it before saving.");
         return;
       }
+      savingRef.current = true;
+      setSavingId(draft.id);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
       const result = onSave(assignment);
       if (!result.ok) { setError(result.reason || "Could not save this assignment."); return; }
       savedKeys.current.add(key);
@@ -76,6 +82,9 @@ export function ExtractionReview({ timezone, assignments, onSave, onManual }: {
       setMessage(`Saved ${assignment.title}. Review another suggestion or use manual entry.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Check the assignment before saving.");
+    } finally {
+      savingRef.current = false;
+      setSavingId(null);
     }
   }
 
@@ -96,7 +105,7 @@ export function ExtractionReview({ timezone, assignments, onSave, onManual }: {
           setMessage("");
         }} placeholder="Paste assignment instructions, a syllabus section, or a list of deadlines" />
         <p className="field-help">The text you paste is sent to Replicate for AI extraction. Do not include private information you do not want to send. {text.length.toLocaleString()}/12,000 characters.</p>
-        <div className="action-row"><button className="button" type="submit" disabled={pending || !text.trim()}>{pending ? "Finding assignments…" : "Find assignments"}</button></div>
+        <div className="action-row"><button className="button" type="submit" disabled={pending || savingId !== null || !text.trim()} aria-busy={pending}>{pending ? "Finding assignments…" : "Find assignments"}</button></div>
       </form>
       {limitWarning && <p className="extraction-warning" role="status">There may be more than 10 assignments here. Only the first 10 suggestions are shown. Split the text and check for anything missing.</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -123,7 +132,7 @@ export function ExtractionReview({ timezone, assignments, onSave, onManual }: {
             </div>
             <p className="field-help">Time zone: {timezone}. If no time was given, choose one yourself.</p>
             <label className="review-confirm"><input type="checkbox" checked={draft.confirmed} onChange={(event) => change(draft.id, "confirmed", event.target.checked)} /> I checked the deadline, time, and remaining work.</label>
-            <button type="button" className="button" disabled={!draft.confirmed || duplicate} onClick={() => save(draft)}>Save assignment</button>
+            <button type="button" className="button" disabled={!draft.confirmed || duplicate || savingId !== null} aria-busy={savingId === draft.id} onClick={() => save(draft)}>{savingId === draft.id ? "Saving…" : "Save assignment"}</button>
           </div>;
         })}
       </div>}

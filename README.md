@@ -36,7 +36,7 @@ Deadlines can be hard to manage when assignments, classes, work, and personal pl
 
 ## For developers
 
-The app uses Next.js, React, and TypeScript. The first version is designed to keep data in the browser with `localStorage`. GitHub is the intended source repository, and Vercel is the intended host, but this local workspace has not been pushed or deployed.
+The app uses Next.js, React, and TypeScript. The first version keeps data in the browser with `localStorage`. GitHub is the source repository, and Vercel is the intended host. The current local changes have not been pushed or deployed; see [Phase 12 verification](PHASE_12_VERIFICATION.md) for the release checks still needed.
 
 To run it locally:
 
@@ -53,7 +53,7 @@ Useful commands:
 | `npm run dev` | Start the local development server |
 | `npm run lint` | Check code style and common mistakes |
 | `npm run typecheck` | Check TypeScript types |
-| `npm test` | Run the scheduler, Focus, extraction, and example tests |
+| `npm test` | Run the scheduler, Focus, extraction, example, and persistence tests |
 | `npm run build` | Create a production build locally |
 
 Manual entry, planning, and Focus need no API key. To use AI extraction, create a Replicate API token and put `REPLICATE_API_TOKEN=your_token` in `.env.local`, then restart the local development server. The server calls Replicate's official `meta/meta-llama-3-70b-instruct` model. Pasted text and its reference date/time zone go to Replicate; saved assignments remain in this browser. Without a token, the paste form explains that extraction is unavailable and manual entry still works.

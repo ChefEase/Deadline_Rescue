@@ -20,13 +20,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   const showExample = state?.mode === "example" && !onWelcome;
 
   if (inFocus || onWelcome) {
-    return <main className="standalone-page">{showExample
+    return <main id="main-content" className="standalone-page">{showExample
       ? <div className="standalone-stack"><ExampleBanner focus />{children}</div>
       : children}</main>;
   }
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <aside className="sidebar" aria-label="Main navigation">
         <Link className="brand" href="/plan">Deadline Rescue</Link>
         <nav aria-label="Main">
@@ -41,7 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
       </aside>
-      <main className="page-content">{showExample && <ExampleBanner />}{children}</main>
+      <main id="main-content" className="page-content">{showExample && <ExampleBanner />}{children}</main>
       <nav className="bottom-nav" aria-label="Main">
         {destinations.map(({ href, label }) => (
           <Link

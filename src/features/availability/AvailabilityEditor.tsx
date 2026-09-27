@@ -23,6 +23,7 @@ export function AvailabilityEditor() {
   const { state, mutate } = useAppStore();
   const router = useRouter();
   const buildingRef = useRef(false);
+  const savingAvailabilityRef = useRef(false);
   const [windows, setWindows] = useState<StudyWindow[]>(() => state?.studyWindows.length
     ? state.studyWindows : proposedStudyWindows());
   const [timezone, setTimezone] = useState(() => state?.timezone || "UTC");
@@ -31,6 +32,8 @@ export function AvailabilityEditor() {
   const [editing, setEditing] = useState<Commitment | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [building, setBuilding] = useState(false);
+  const [savingAvailability, setSavingAvailability] = useState(false);
   const [asOf] = useState(() => Date.now());
   if (!state) return null;
   const savedState = state;
@@ -61,7 +64,8 @@ export function AvailabilityEditor() {
     setMessage("");
   }
 
-  function saveAvailability() {
+  async function saveAvailability() {
+    if (savingAvailabilityRef.current) return;
     setMessage("");
     const issue = validateWindows(windows);
     if (issue) { setError(issue); return; }
@@ -76,22 +80,34 @@ export function AvailabilityEditor() {
       "Change the plan timezone? Saved deadlines and commitments will keep their actual instants and display in the new timezone. Weekly study hours will keep their local clock times. Your plan will need an update.",
     )) return;
 
-    // Dated deadlines and commitments remain UTC instants; only their display zone changes.
-    const result = mutate((current) => ({
-      ...current,
-      timezone: zone,
-      preferences: { ...current.preferences, sessionMinutes: session },
-      studyWindows: windows,
-      availabilityConfirmedAt: new Date().toISOString(),
-    }));
-    if (result.ok) { setError(""); setMessage("Study hours saved in this browser."); }
-    else setError(result.reason);
+    savingAvailabilityRef.current = true;
+    setSavingAvailability(true);
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    try {
+      // Dated deadlines and commitments remain UTC instants; only their display zone changes.
+      const result = mutate((current) => ({
+        ...current,
+        timezone: zone,
+        preferences: { ...current.preferences, sessionMinutes: session },
+        studyWindows: windows,
+        availabilityConfirmedAt: new Date().toISOString(),
+      }));
+      if (result.ok) { setError(""); setMessage("Study hours saved in this browser."); }
+      else setError(result.reason);
+    } catch {
+      setError("Study hours could not be saved.");
+    } finally {
+      savingAvailabilityRef.current = false;
+      setSavingAvailability(false);
+    }
   }
 
-  function buildFromAvailability() {
+  async function buildFromAvailability() {
     if (buildingRef.current) return;
     buildingRef.current = true;
+    setBuilding(true);
     setError("");
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     try {
       const plan = buildPlanForState(savedState, new Date().toISOString());
       const result = mutate((current) => ({ ...current, plan }));
@@ -101,6 +117,7 @@ export function AvailabilityEditor() {
       setError(cause instanceof Error ? cause.message : "The plan could not be built.");
     } finally {
       buildingRef.current = false;
+      setBuilding(false);
     }
   }
 
@@ -230,9 +247,9 @@ export function AvailabilityEditor() {
             </label>
           </div>
           <div className="action-row">
-            <button className="button" onClick={saveAvailability}>Save availability</button>
+            <button className="button" disabled={savingAvailability || building} aria-busy={savingAvailability} onClick={saveAvailability}>{savingAvailability ? "Saving…" : "Save availability"}</button>
             {!state.plan && state.availabilityConfirmedAt && state.assignments.some((assignment) => assignment.status === "active") && (
-              <button className="button button-secondary" disabled={availabilityDraftChanged} onClick={buildFromAvailability}>Build my plan</button>
+              <button className="button button-secondary" disabled={availabilityDraftChanged || building || savingAvailability} aria-busy={building} onClick={buildFromAvailability}>{building ? "Building…" : "Build my plan"}</button>
             )}
           </div>
           {availabilityDraftChanged && state.availabilityConfirmedAt && <p className="field-help">Save these changes before building a plan.</p>}
