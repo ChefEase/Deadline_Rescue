@@ -36,7 +36,7 @@ export interface StudyWindow {
   id: Id;
   weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   localStart: LocalTime;
-  localEnd: LocalTime;
+  localEnd: LocalTime; // "24:00" means midnight at the end of this weekday.
   enabled: boolean;
 }
 

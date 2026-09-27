@@ -35,7 +35,7 @@ export function isAppState(value: unknown): value is AppState {
   const windows = value.studyWindows;
   if (!windows.every(object) || !uniqueIds(windows) || !windows.every((item) =>
     text(item.id, 100, 1) && integer(item.weekday, 1) && item.weekday <= 7 && localTime(item.localStart) &&
-    localTime(item.localEnd) && item.localEnd > item.localStart && typeof item.enabled === "boolean")) return false;
+    (localTime(item.localEnd) || item.localEnd === "24:00") && item.localEnd > item.localStart && typeof item.enabled === "boolean")) return false;
 
   const commitments = value.commitments;
   if (!commitments.every(object) || !uniqueIds(commitments) || !commitments.every((item) =>

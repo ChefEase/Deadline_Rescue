@@ -16,7 +16,7 @@ The app is designed for one person. It does not require an account. Plans are in
 
 ## Current progress
 
-**Manual assignment management is available locally.** You can add, edit, complete, reopen, and delete assignments. Confirmed work is saved in this browser, with a recovery screen for invalid saved data. Availability, scheduling, AI extraction, and Focus timing are still being built, so this is not yet a finished study planner.
+**Assignments and availability are available locally.** You can manage assignments, review and save weekly study hours, and add fixed commitments. Confirmed work is saved in this browser, with a recovery screen for invalid saved data. Scheduling, AI extraction, and Focus timing are still being built, so this is not yet a finished study planner.
 
 The detailed product specification is in [Deadline_Rescue_Context.md](Deadline_Rescue_Context.md). The build order and completion checks are in [Deadline_Rescue_Development_Plan.md](Deadline_Rescue_Development_Plan.md).
 

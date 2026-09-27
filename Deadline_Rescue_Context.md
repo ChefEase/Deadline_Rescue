@@ -361,7 +361,7 @@ Never alter deadlines, effort estimates, or availability to make a schedule appe
 ```ts
 type Id = string; // Generate with crypto.randomUUID().
 type Instant = string; // ISO 8601 UTC, for example 2026-09-28T18:00:00.000Z.
-type LocalTime = string; // 24-hour HH:mm in the plan timezone.
+type LocalTime = string; // 24-hour HH:mm in the plan timezone; a study-window end may be "24:00".
 type LocalDate = string; // YYYY-MM-DD in the plan timezone.
 type Minutes = number; // Non-negative integer unless a field says positive.
 
@@ -412,7 +412,7 @@ interface StudyWindow {
   id: Id;
   weekday: 1 | 2 | 3 | 4 | 5 | 6 | 7; // ISO: Monday = 1.
   localStart: LocalTime;
-  localEnd: LocalTime; // Later than localStart; no overnight window in P0.
+  localEnd: LocalTime; // Later than localStart. "24:00" means midnight at the end of this day; no other overnight window in P0.
   enabled: boolean;
 }
 

@@ -1,9 +1,8 @@
+"use client";
+
+import { StoreBoundary } from "@/components/StoreBoundary";
+import { AvailabilityEditor } from "@/features/availability/AvailabilityEditor";
+
 export default function AvailabilityPage() {
-  return (
-    <section className="page-card">
-      <p className="eyebrow">Availability</p>
-      <h1>Make room for real life.</h1>
-      <p>Set study windows and fixed commitments before building a plan.</p>
-    </section>
-  );
+  return <StoreBoundary><AvailabilityEditor /></StoreBoundary>;
 }
