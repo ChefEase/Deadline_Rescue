@@ -1,69 +1,47 @@
 # Deadline Rescue
 
-**Deadline Rescue helps students see what to work on next.** The idea is simple: enter assignments and the time you can study, get a realistic plan, then focus on one study session at a time. If your schedule changes, the app will explain what still fits and what needs attention.
+**A realistic study plan for deadlines that compete with classes, work, and life.** A task list can show what is due without showing whether there is enough time to finish it. Deadline Rescue schedules work into the hours a student is available, shows any shortfall, and gives them a next study session to start.
 
-## What can I do with it?
+**Live app:** [deadline-rescue-lemon.vercel.app](https://deadline-rescue-lemon.vercel.app/)
 
-The planned experience is:
+## Core flow
 
-1. Add an assignment or paste its instructions.
-2. Confirm the deadline and estimate the work left.
-3. Set your study hours and add classes, shifts, or other commitments.
-4. View a plan that shows your next study session and any work that could not fit.
-5. Focus on one session, record your actual progress, and update the plan.
+1. Add assignments manually, or paste a brief and review AI suggestions. Confirm each deadline, time, title, and estimate of work left before saving.
+2. Set weekly study hours and add fixed commitments such as classes or shifts. Study hours mean *available* time; the plan chooses specific sessions within them.
+3. Build a 14-day plan. My Plan shows upcoming sessions and work that cannot fit before its deadline. Change a commitment or study window and select **Replan** to see what moved.
+4. Start a current Focus session, pause or resume it, then review the minutes actually worked. The app updates remaining work and the plan.
 
-The app is designed for one person. It does not require an account. Plans are intended to be saved in the browser you use, so they will not automatically appear on another device.
+New visitors can choose **Try an example** to see a shift create a shortfall and extra study hours resolve it. No account is needed.
 
-## Current progress
+## Stack and local setup
 
-**The setup journey, My Plan, replanning, Focus, reviewed AI extraction, and a guided example are available locally.** You can add assignments manually or paste instructions for AI suggestions, confirm study hours, add fixed commitments, and build a 14-day plan. AI suggestions are saved only after you review and confirm each deadline, time, and work estimate. Changes to scheduling inputs mark the plan as needing an update; Replan explains what changed. During a current session, Focus can run, pause, resume after refresh, and ask you to confirm actual work before saving progress and updating the plan. Saved work stays in this browser, with a recovery screen for invalid saved data.
+- Next.js, React, and TypeScript for the web app.
+- A deterministic scheduling engine for study sessions and shortfalls.
+- Versioned browser `localStorage` for assignments, availability, plans, and Focus progress.
+- Replicate's `meta/meta-llama-3-70b-instruct` model for optional assignment extraction. The server holds the API token; students must review its suggestions.
 
-## Try the example
+Use Node.js 20.9 or newer. In this folder, run:
 
-1. On Welcome, choose **Try an example**. If you already have personal work, open My Plan and choose it there; the app asks before replacing that work.
-2. My Plan opens with synthetic assignments, a class, study hours, and a schedule. Follow the blue **Try the example** prompt.
-3. In Availability, add the suggested 6:00–8:00 PM work shift on the date shown. Return to My Plan and select **Replan** to see the Maths shortfall.
-4. Enable the suggested 4:00–6:00 PM study window, save availability, and **Replan** again. The shortfall should clear.
-5. Open Focus from Next Up. End it early and enter only the minutes you actually worked; the example never fills in a fake completed session.
+```sh
+npm install
+npm run dev
+```
 
-The dates come from your local timezone. The **Example data** banner stays visible across the example, and **Start my own plan** asks before clearing it.
+Open `http://localhost:3000`. On Windows PowerShell, use `npm.cmd` in place of `npm` if script execution is disabled. Run `npm test`, `npm run lint`, and `npm run build` to check the project.
 
-The detailed product specification is in [Deadline_Rescue_Context.md](Deadline_Rescue_Context.md). The build order and completion checks are in [Deadline_Rescue_Development_Plan.md](Deadline_Rescue_Development_Plan.md).
+### Environment variable
 
-## Why this project exists
+| Name | Where to set it | Purpose |
+| --- | --- | --- |
+| `REPLICATE_API_TOKEN` | Local `.env.local`; Vercel project environment settings for the deployed app | Enables optional AI extraction. Manual entry, planning, and Focus work without it. |
 
-Deadlines can be hard to manage when assignments, classes, work, and personal plans compete for the same hours. A task list shows what is due, but it does not always show whether there is enough time. Deadline Rescue aims to make that gap visible and give students one clear next action.
+Copy the variable name from [`.env.example`](.env.example), add your own token to `.env.local`, and restart the dev server. Keep the real token out of Git. Pasted briefs and the reference date/time zone are sent to Replicate when AI extraction is used.
 
-## For developers
+## Known limitations
 
-The app uses Next.js, React, and TypeScript. The first version keeps data in the browser with `localStorage`. GitHub is the source repository, and Vercel is the intended host. The current local changes have not been pushed or deployed; see [Phase 12 verification](PHASE_12_VERIFICATION.md) for the release checks still needed.
+- Plans are stored in each browser. They do not sync between devices, and clearing browser storage removes them. Accounts and a hosted database are not part of this version.
+- The plan covers the next 14 days and depends on the deadlines, work estimates, and availability entered by the student. It may show work that cannot fit; it does not guarantee completion.
+- AI extraction can miss or misread details. Students must check suggestions and supply missing titles, deadlines, times, and effort before saving. Manual entry remains available if AI fails.
+- There are no calendar integrations or notifications. The AI endpoint has a basic per-instance rate limit, which is not intended for high traffic.
 
-To run it locally:
-
-1. Install Node.js 20.9 or newer.
-2. In this folder, run `npm install`.
-3. Run `npm run dev` and open `http://localhost:3000`.
-
-On Windows PowerShell, use `npm.cmd` in place of `npm` if script execution is disabled. For example, run `npm.cmd run dev`.
-
-Useful commands:
-
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Start the local development server |
-| `npm run lint` | Check code style and common mistakes |
-| `npm run typecheck` | Check TypeScript types |
-| `npm test` | Run the scheduler, Focus, extraction, example, and persistence tests |
-| `npm run build` | Create a production build locally |
-
-Manual entry, planning, and Focus need no API key. To use AI extraction, create a Replicate API token and put `REPLICATE_API_TOKEN=your_token` in `.env.local`, then restart the local development server. The server calls Replicate's official `meta/meta-llama-3-70b-instruct` model. Pasted text and its reference date/time zone go to Replicate; saved assignments remain in this browser. Without a token, the paste form explains that extraction is unavailable and manual entry still works.
-
-### Phase 2 deployment handoff
-
-Import the GitHub repository into Vercel as a Next.js project. Manual features have no required environment variables or custom build settings. Deploy the repository's intended branch, then open the public URL in a private browser window. Refresh `/plan` directly and confirm it still loads without a hosting-account login.
-
-Keep future deployments on the same Vercel project. To enable AI extraction there, add `REPLICATE_API_TOKEN` in the project environment settings. The in-memory request limit is basic per server instance, so a public high-traffic deployment needs a shared rate limiter.
-
-## Project boundaries
-
-This hackathon version does not include accounts, cross-device sync, calendar integrations, notifications, or guaranteed deadline completion. Scheduling will use the work estimates and availability entered by the user. The app cannot know whether an assignment is truly finished until the user confirms it.
+For the product specification, see [context](Deadline_Rescue_Context.md). For the build phases and remaining release checks, see [development plan](Deadline_Rescue_Development_Plan.md) and [Phase 12 verification](PHASE_12_VERIFICATION.md).
